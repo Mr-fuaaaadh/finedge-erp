@@ -1,0 +1,24 @@
+{
+  "overview": "Enterprise-grade financial services ERP + CRM platform with role-based dashboards for Admin, Branch Manager, Staff, and Finance Manager. Features 8 complete modules including Lead CRM with Kanban, Task Management, Attendance tracking, Finance analytics, and Performance dashboards — all with premium fintech UI.",
+  "features": [
+    "Role-based dashboards for 4 user types (Admin, Branch Manager, Staff, Finance Manager)",
+    "Lead Management CRM with drag-and-drop Kanban board and activity timeline",
+    "Branch and Staff management with search, filters, and analytics",
+    "Task Management with Kanban, list, and calendar views",
+    "Attendance tracking with calendar heatmap",
+    "Finance dashboard with P&L charts and branch revenue analytics",
+    "Performance dashboard with leaderboards and trend graphs",
+    "Dark mode, responsive design, loading skeletons, and empty states"
+  ],
+  "category": "business",
+  "tags": [
+    "erp",
+    "crm",
+    "fintech",
+    "dashboard",
+    "enterprise",
+    "rbac",
+    "analytics"
+  ],
+  "last_updated": "2026-04-22T15:25:48.353Z"
+}
