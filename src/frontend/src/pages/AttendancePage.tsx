@@ -21,14 +21,16 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  Download,
   RefreshCw,
+  Search,
   Shield,
   UserCheck,
   UserX,
   Users,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -40,11 +42,17 @@ import {
 } from "recharts";
 import { toast } from "sonner";
 import { ChartCard } from "../components/shared/ChartCard";
+import { FilterPanel } from "../components/shared/FilterPanel";
+import type {
+  FilterField,
+  FilterValues,
+} from "../components/shared/FilterPanel";
 import { PageHeader } from "../components/shared/PageHeader";
 import { StatCard } from "../components/shared/StatCard";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { mockAttendance } from "../data/mockAttendance";
 import { mockUsers } from "../data/mockUsers";
+import { exportToCSV } from "../utils/csvExport";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface BiometricDevice {
@@ -102,7 +110,8 @@ const BRANCHES = [
   "Hyderabad West",
   "Chennai South",
 ];
-const STATUSES = [
+
+const STATUSES_LIST = [
   "All Statuses",
   "Present",
   "Absent",
@@ -111,7 +120,6 @@ const STATUSES = [
   "Leave",
 ];
 
-// Map branchId to name
 const branchMap: Record<string, string> = {
   b1: "Mumbai Central",
   b2: "Delhi NCR",
@@ -120,6 +128,157 @@ const branchMap: Record<string, string> = {
   b5: "Chennai South",
   b7: "Kolkata North",
 };
+
+// ─── Filter fields (for advanced FilterPanel) ─────────────────────────────────
+
+const attendanceFilterFields: FilterField[] = [
+  {
+    key: "employee",
+    label: "Employee Name",
+    type: "text",
+    placeholder: "Search employee…",
+  },
+  {
+    key: "branch",
+    label: "Branch",
+    type: "select",
+    options: BRANCHES.slice(1).map((b) => ({ label: b, value: b })),
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: STATUSES_LIST.slice(1).map((s) => ({ label: s, value: s })),
+  },
+  { key: "daterange", label: "Date Range", type: "daterange" },
+];
+
+// ─── Inline Filter Row ────────────────────────────────────────────────────────
+
+function AttendanceInlineFilters({
+  startDate,
+  endDate,
+  branch,
+  status,
+  employeeSearch,
+  onStartDate,
+  onEndDate,
+  onBranch,
+  onStatus,
+  onEmployeeSearch,
+  onExport,
+}: {
+  startDate: string;
+  endDate: string;
+  branch: string;
+  status: string;
+  employeeSearch: string;
+  onStartDate: (v: string) => void;
+  onEndDate: (v: string) => void;
+  onBranch: (v: string) => void;
+  onStatus: (v: string) => void;
+  onEmployeeSearch: (v: string) => void;
+  onExport: () => void;
+}) {
+  return (
+    <div
+      className="bg-card border border-border rounded-2xl shadow-card px-3 sm:px-4 py-2.5 flex flex-wrap items-end gap-2"
+      data-ocid="attendance.inline_filters"
+    >
+      {/* Employee search */}
+      <div className="flex flex-col gap-1 flex-1 min-w-[130px] max-w-xs">
+        <Label className="text-[10px] text-muted-foreground">Employee</Label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+          <Input
+            value={employeeSearch}
+            onChange={(e) => onEmployeeSearch(e.target.value)}
+            placeholder="Search name…"
+            className="h-8 pl-7 text-xs rounded-xl"
+            data-ocid="attendance.filter.employee_search_input"
+          />
+        </div>
+      </div>
+
+      {/* Start date */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-[10px] text-muted-foreground">From</Label>
+        <Input
+          type="date"
+          value={startDate}
+          onChange={(e) => onStartDate(e.target.value)}
+          className="h-8 text-xs w-[130px] sm:w-36 rounded-xl"
+          data-ocid="attendance.filter.start_date_input"
+        />
+      </div>
+
+      {/* End date */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-[10px] text-muted-foreground">To</Label>
+        <Input
+          type="date"
+          value={endDate}
+          onChange={(e) => onEndDate(e.target.value)}
+          className="h-8 text-xs w-[130px] sm:w-36 rounded-xl"
+          data-ocid="attendance.filter.end_date_input"
+        />
+      </div>
+
+      {/* Branch */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-[10px] text-muted-foreground">Branch</Label>
+        <Select value={branch} onValueChange={onBranch}>
+          <SelectTrigger
+            className="h-8 text-xs w-[130px] sm:w-40 rounded-xl"
+            data-ocid="attendance.filter.branch_select"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BRANCHES.map((b) => (
+              <SelectItem key={b} value={b}>
+                {b}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Status */}
+      <div className="flex flex-col gap-1">
+        <Label className="text-[10px] text-muted-foreground">Status</Label>
+        <Select value={status} onValueChange={onStatus}>
+          <SelectTrigger
+            className="h-8 text-xs w-[120px] sm:w-36 rounded-xl"
+            data-ocid="attendance.filter.status_select"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUSES_LIST.map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Export CSV */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 rounded-xl gap-1.5 text-xs ml-auto self-end"
+        onClick={onExport}
+        data-ocid="attendance.filter.export_csv_button"
+      >
+        <Download className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Export CSV</span>
+        <span className="sm:hidden">CSV</span>
+      </Button>
+    </div>
+  );
+}
 
 // ─── Calendar Heatmap ─────────────────────────────────────────────────────────
 function CalendarHeatmap() {
@@ -157,86 +316,90 @@ function CalendarHeatmap() {
 
   return (
     <div className="space-y-6">
-      {months.map((month) => {
-        const daysInMonth = month === "2025-02" ? 28 : 30;
-        const firstDayOfWeek = new Date(`${month}-01`).getDay();
-        // Build offset slots with stable keys, then actual days
-        const offsetSlots = Array.from(
-          { length: firstDayOfWeek },
-          (_, idx) => ({
-            key: `${month}-pad-${idx}`,
-            date: null as string | null,
-          }),
-        );
-        const daySlots = Array.from({ length: daysInMonth }, (_, idx) => {
-          const d = idx + 1;
-          const dateStr = `${month}-${String(d).padStart(2, "0")}`;
-          return { key: dateStr, date: dateStr };
-        });
-        const allSlots = [...offsetSlots, ...daySlots];
+      {/* Heatmap scrolls horizontally on narrow screens */}
+      <div className="overflow-x-auto">
+        <div className="min-w-[320px]">
+          {months.map((month) => {
+            const daysInMonth = month === "2025-02" ? 28 : 30;
+            const firstDayOfWeek = new Date(`${month}-01`).getDay();
+            const offsetSlots = Array.from(
+              { length: firstDayOfWeek },
+              (_, idx) => ({
+                key: `${month}-pad-${idx}`,
+                date: null as string | null,
+              }),
+            );
+            const daySlots = Array.from({ length: daysInMonth }, (_, idx) => {
+              const d = idx + 1;
+              const dateStr = `${month}-${String(d).padStart(2, "0")}`;
+              return { key: dateStr, date: dateStr };
+            });
+            const allSlots = [...offsetSlots, ...daySlots];
 
-        return (
-          <div key={month}>
-            <p className="text-xs font-semibold text-muted-foreground mb-2">
-              {monthNames[month as keyof typeof monthNames]}
-            </p>
-            <div className="grid grid-cols-7 gap-1">
-              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
-                <div
-                  key={d}
-                  className="text-[10px] text-muted-foreground text-center pb-1"
-                >
-                  {d}
-                </div>
-              ))}
-              {allSlots.map(({ key, date }) => {
-                if (!date) return <div key={key} />;
-                const dayOfWeek = new Date(date).getDay();
-                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-                const color = isWeekend ? "bg-muted/40" : getDayColor(date);
-                const absentees =
-                  hoveredDate === date ? getAbsenteesForDate(date) : [];
+            return (
+              <div key={month} className="mb-5">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">
+                  {monthNames[month as keyof typeof monthNames]}
+                </p>
+                <div className="grid grid-cols-7 gap-1">
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                    <div
+                      key={d}
+                      className="text-[10px] text-muted-foreground text-center pb-1"
+                    >
+                      {d}
+                    </div>
+                  ))}
+                  {allSlots.map(({ key, date }) => {
+                    if (!date) return <div key={key} />;
+                    const dayOfWeek = new Date(date).getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const color = isWeekend ? "bg-muted/40" : getDayColor(date);
+                    const absentees =
+                      hoveredDate === date ? getAbsenteesForDate(date) : [];
 
-                return (
-                  <div key={date} className="relative group">
-                    <button
-                      type="button"
-                      className={`w-full aspect-square rounded-md ${color} transition-transform hover:scale-110 cursor-pointer`}
-                      onMouseEnter={() => setHoveredDate(date)}
-                      onMouseLeave={() => setHoveredDate(null)}
-                      aria-label={date}
-                      data-ocid={`attendance.heatmap.day.${date}`}
-                    />
-                    {hoveredDate === date && absentees.length > 0 && (
-                      <div className="absolute z-50 bottom-full mb-1 left-1/2 -translate-x-1/2 bg-card border border-border rounded-xl shadow-elevated p-2 min-w-40 pointer-events-none">
-                        <p className="text-[10px] font-bold text-foreground mb-1">
-                          {date}
-                        </p>
-                        {absentees.map((a) => (
-                          <div
-                            key={a.name}
-                            className="flex items-center gap-1.5 py-0.5"
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${a.status === "Absent" ? "bg-red-500" : "bg-amber-500"}`}
-                            />
-                            <span className="text-[10px] text-foreground">
-                              {a.name}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground ml-auto">
-                              {a.status}
-                            </span>
+                    return (
+                      <div key={date} className="relative group">
+                        <button
+                          type="button"
+                          className={`w-full aspect-square rounded-md ${color} transition-transform hover:scale-110 cursor-pointer`}
+                          onMouseEnter={() => setHoveredDate(date)}
+                          onMouseLeave={() => setHoveredDate(null)}
+                          aria-label={date}
+                          data-ocid={`attendance.heatmap.day.${date}`}
+                        />
+                        {hoveredDate === date && absentees.length > 0 && (
+                          <div className="absolute z-50 bottom-full mb-1 left-1/2 -translate-x-1/2 bg-card border border-border rounded-xl shadow-elevated p-2 min-w-40 pointer-events-none">
+                            <p className="text-[10px] font-bold text-foreground mb-1">
+                              {date}
+                            </p>
+                            {absentees.map((a) => (
+                              <div
+                                key={a.name}
+                                className="flex items-center gap-1.5 py-0.5"
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${a.status === "Absent" ? "bg-red-500" : "bg-amber-500"}`}
+                                />
+                                <span className="text-[10px] text-foreground">
+                                  {a.name}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                  {a.status}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-2 sm:gap-4 pt-2 border-t border-border">
@@ -267,30 +430,74 @@ export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState("daily");
   const [selectedDate, setSelectedDate] = useState("2025-04-22");
   const [selectedMonth, setSelectedMonth] = useState("2025-04");
-  const [branchFilter, setBranchFilter] = useState("All Branches");
-  const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [syncing, setSyncing] = useState(false);
   const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [filterValues, setFilterValues] = useState<FilterValues>({});
 
-  // Daily filtered records
-  const dailyRecords = mockAttendance
-    .filter((a) => a.date === selectedDate)
-    .filter(
-      (a) =>
-        branchFilter === "All Branches" ||
-        branchMap[a.branchId] === branchFilter,
-    )
-    .filter(
-      (a) => statusFilter === "All Statuses" || a.status === statusFilter,
-    );
+  // Inline filter state (wired to dailyRecords)
+  const [inlineStartDate, setInlineStartDate] = useState("");
+  const [inlineEndDate, setInlineEndDate] = useState("");
+  const [inlineBranch, setInlineBranch] = useState("All Branches");
+  const [inlineStatus, setInlineStatus] = useState("All Statuses");
+  const [inlineEmployee, setInlineEmployee] = useState("");
+
+  // Compute filtered records with all filters combined
+  const dailyRecords = useMemo(() => {
+    const advEmployee = (filterValues.employee as string | undefined) ?? "";
+    const advBranch = (filterValues.branch as string | undefined) ?? "";
+    const advStatus = (filterValues.status as string | undefined) ?? "";
+    const advDateRange = filterValues.daterange as
+      | { from: string; to: string }
+      | undefined;
+
+    // Determine effective date range (inline takes priority if set)
+    const effectiveStart = inlineStartDate || advDateRange?.from || "";
+    const effectiveEnd = inlineEndDate || advDateRange?.to || "";
+
+    return mockAttendance.filter((a) => {
+      // Date range filter
+      if (effectiveStart || effectiveEnd) {
+        if (effectiveStart && a.date < effectiveStart) return false;
+        if (effectiveEnd && a.date > effectiveEnd) return false;
+      } else {
+        // Fall back to single date selector
+        if (a.date !== selectedDate) return false;
+      }
+
+      // Branch filter (inline overrides advanced panel if different from default)
+      const branchToUse =
+        (inlineBranch !== "All Branches" ? inlineBranch : "") || advBranch;
+      if (branchToUse && branchMap[a.branchId] !== branchToUse) return false;
+
+      // Status filter (inline overrides if different from default)
+      const statusToUse =
+        (inlineStatus !== "All Statuses" ? inlineStatus : "") || advStatus;
+      if (statusToUse && a.status !== statusToUse) return false;
+
+      // Employee name search (inline + advanced combined)
+      const employeeToUse = inlineEmployee || advEmployee;
+      if (
+        employeeToUse &&
+        !a.userName.toLowerCase().includes(employeeToUse.toLowerCase())
+      )
+        return false;
+
+      return true;
+    });
+  }, [
+    selectedDate,
+    inlineStartDate,
+    inlineEndDate,
+    inlineBranch,
+    inlineStatus,
+    inlineEmployee,
+    filterValues,
+  ]);
 
   // Late entries (check-in after 09:30)
   const lateEntries = mockAttendance
     .filter((a) => a.date === selectedDate && a.status === "Late")
-    .map((a) => ({
-      ...a,
-      minutesLate: 45,
-    }));
+    .map((a) => ({ ...a, minutesLate: 45 }));
 
   // Monthly summary per user
   const monthlyRecords = mockAttendance.filter((a) =>
@@ -350,6 +557,34 @@ export default function AttendancePage() {
     }, 2200);
   }
 
+  function handleExportCSV() {
+    if (activeTab === "daily") {
+      const rows = dailyRecords.map((a) => ({
+        "Staff Name": a.userName,
+        Branch: branchMap[a.branchId] ?? a.branchId,
+        Date: a.date,
+        "Check In": a.checkIn ?? "—",
+        "Check Out": a.checkOut ?? "—",
+        "Work Hours": a.workHours,
+        Overtime: a.overtime,
+        Status: a.status,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "attendance_daily");
+    } else if (activeTab === "monthly") {
+      const rows = monthlySummary.map((s) => ({
+        "Staff Name": s.name,
+        Present: s.present,
+        Absent: s.absent,
+        Late: s.late,
+        "Total Hours": s.totalHours,
+        Overtime: s.overtime,
+        "Attendance %": s.pct,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "attendance_monthly");
+    }
+    toast.success("Attendance data exported to CSV");
+  }
+
   return (
     <div>
       <PageHeader
@@ -357,19 +592,38 @@ export default function AttendancePage() {
         subtitle="Daily logs, monthly summaries, calendar heatmap, and biometric sync"
         breadcrumbs={[{ label: "Home" }, { label: "Attendance" }]}
         actions={
-          <Button
-            onClick={() => setManualEntryOpen(true)}
-            data-ocid="attendance.manual_entry_open_modal_button"
-          >
-            <CalendarDays className="w-4 h-4 mr-2" />
-            Manual Entry
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <FilterPanel
+              filters={attendanceFilterFields}
+              presetKey="attendance"
+              onFilterChange={setFilterValues}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl gap-1.5"
+              onClick={handleExportCSV}
+              data-ocid="attendance.export_csv_button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </Button>
+            <Button
+              onClick={() => setManualEntryOpen(true)}
+              size="sm"
+              className="rounded-xl"
+              data-ocid="attendance.manual_entry_open_modal_button"
+            >
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Manual Entry
+            </Button>
+          </div>
         }
         data-ocid="attendance.header"
       />
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* Stats Row — 2 cols mobile, 2 cols sm, 4 cols md, 5 cols lg */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {[
           {
             title: "Present Today",
@@ -407,6 +661,11 @@ export default function AttendancePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.07 }}
+            className={
+              i === 4
+                ? "col-span-2 sm:col-span-2 md:col-span-4 lg:col-span-1"
+                : ""
+            }
           >
             <StatCard
               title={s.title}
@@ -441,60 +700,45 @@ export default function AttendancePage() {
 
         {/* ── Daily Log ── */}
         <TabsContent value="daily" className="space-y-4">
-          {/* Filters */}
-          <div className="bg-card border border-border rounded-2xl shadow-card p-3 sm:p-4 flex flex-wrap items-end gap-2 sm:gap-3">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Date</Label>
+          {/* Inline filter row — date range, branch, status, employee, export */}
+          <AttendanceInlineFilters
+            startDate={inlineStartDate}
+            endDate={inlineEndDate}
+            branch={inlineBranch}
+            status={inlineStatus}
+            employeeSearch={inlineEmployee}
+            onStartDate={setInlineStartDate}
+            onEndDate={setInlineEndDate}
+            onBranch={setInlineBranch}
+            onStatus={setInlineStatus}
+            onEmployeeSearch={setInlineEmployee}
+            onExport={handleExportCSV}
+          />
+
+          {/* Legacy single date selector (when no range active) */}
+          {!inlineStartDate && !inlineEndDate && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <Label className="text-xs text-muted-foreground">Date:</Label>
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-8 text-xs w-40"
+                className="h-8 text-xs w-36 sm:w-40"
                 data-ocid="attendance.date_input"
               />
+              <span className="text-xs text-muted-foreground">
+                {dailyRecords.length} records
+              </span>
             </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Branch</Label>
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger
-                  className="h-8 text-xs w-44"
-                  data-ocid="attendance.branch_select"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BRANCHES.map((b) => (
-                    <SelectItem key={b} value={b}>
-                      {b}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger
-                  className="h-8 text-xs w-40"
-                  data-ocid="attendance.status_select"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <span className="text-xs text-muted-foreground ml-auto self-end pb-1">
-              {dailyRecords.length} records
-            </span>
-          </div>
+          )}
 
-          {/* Table */}
+          {inlineStartDate || inlineEndDate ? (
+            <div className="text-xs text-muted-foreground px-1">
+              {dailyRecords.length} records matching filters
+            </div>
+          ) : null}
+
+          {/* Table — overflow-x-auto for mobile */}
           <div
             className="bg-card border border-border rounded-2xl shadow-card overflow-hidden"
             data-ocid="attendance.daily_table"
@@ -671,6 +915,7 @@ export default function AttendancePage() {
             className="bg-card border border-border rounded-2xl shadow-card overflow-hidden"
             data-ocid="attendance.monthly_table"
           >
+            {/* overflow-x-auto for mobile */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-muted/30 border-b border-border">
@@ -796,7 +1041,7 @@ export default function AttendancePage() {
         {/* ── Calendar Heatmap ── */}
         <TabsContent value="heatmap">
           <div
-            className="bg-card border border-border rounded-2xl shadow-card p-6"
+            className="bg-card border border-border rounded-2xl shadow-card p-4 sm:p-6"
             data-ocid="attendance.heatmap"
           >
             <div className="flex items-center gap-2 mb-5">
@@ -804,18 +1049,21 @@ export default function AttendancePage() {
               <h3 className="text-sm font-display font-semibold text-foreground">
                 3-Month Attendance Heatmap
               </h3>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground hidden sm:inline">
                 — hover a day to see absences
               </span>
             </div>
-            <CalendarHeatmap />
+            {/* overflow-x-auto wrapper for heatmap */}
+            <div className="overflow-x-auto">
+              <CalendarHeatmap />
+            </div>
           </div>
         </TabsContent>
 
         {/* ── Biometric Sync ── */}
         <TabsContent value="biometric" className="space-y-4">
           {/* Status Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {[
               {
                 icon: CheckCircle2,
@@ -866,7 +1114,7 @@ export default function AttendancePage() {
             ))}
           </div>
 
-          {/* Sync Log Table */}
+          {/* Sync Log Table — overflow-x-auto for mobile */}
           <div
             className="bg-card border border-border rounded-2xl shadow-card overflow-hidden"
             data-ocid="attendance.biometric_table"

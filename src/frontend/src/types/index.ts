@@ -211,3 +211,53 @@ export interface KPIData {
   unit?: string;
   sparkline?: number[];
 }
+
+// ─── Enterprise Features ──────────────────────────────────────────────────────
+
+export type AuditAction =
+  | "CREATE"
+  | "UPDATE"
+  | "DELETE"
+  | "LOGIN"
+  | "LOGOUT"
+  | "EXPORT"
+  | "VIEW";
+
+export type AuditResource =
+  | "Branch"
+  | "Staff"
+  | "Lead"
+  | "Task"
+  | "Attendance"
+  | "Finance"
+  | "Report";
+
+export interface AuditLog {
+  id: string;
+  timestamp: Date;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  action: AuditAction;
+  resource: AuditResource;
+  resourceId: string;
+  details: string;
+  ipAddress: string;
+}
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: "info" | "warning" | "error" | "success";
+  timestamp: Date;
+  read: boolean;
+  link: string | undefined;
+}

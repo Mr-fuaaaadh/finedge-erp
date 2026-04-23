@@ -11,12 +11,9 @@ import {
 } from "@/components/ui/select";
 import {
   Check,
-  ChevronDown,
-  ChevronUp,
+  Download,
   Grid3X3,
   LayoutList,
-  Minus,
-  Pencil,
   Plus,
   Search,
   Shield,
@@ -25,9 +22,15 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useMemo, useState } from "react";
+import { BulkActionBar } from "../components/shared/BulkActionBar";
 import { EmptyState } from "../components/shared/EmptyState";
+import type {
+  FilterField,
+  FilterValues,
+} from "../components/shared/FilterPanel";
+import { FilterPanel } from "../components/shared/FilterPanel";
 import {
   CardSkeleton,
   StatCardSkeleton,
@@ -39,6 +42,7 @@ import { StatusBadge } from "../components/shared/StatusBadge";
 import { mockBranches } from "../data/mockBranches";
 import { mockUsers } from "../data/mockUsers";
 import type { Department, Role, User, UserStatus } from "../types";
+import { exportToCSV } from "../utils/csvExport";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -150,6 +154,47 @@ const SCORE_COLOR = (v: number) =>
       : v >= 60
         ? "text-amber-600"
         : "text-red-500";
+
+const STAFF_FILTER_FIELDS: FilterField[] = [
+  { key: "name", label: "Name", type: "text", placeholder: "Search by name…" },
+  {
+    key: "department",
+    label: "Department",
+    type: "select",
+    options: ALL_DEPARTMENTS.map((d) => ({ label: d, value: d })),
+  },
+  {
+    key: "role",
+    label: "Role",
+    type: "select",
+    options: ROLES.map((r) => ({ label: r.label, value: r.value })),
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { label: "Active", value: "Active" },
+      { label: "Inactive", value: "Inactive" },
+      { label: "On Leave", value: "On Leave" },
+    ],
+  },
+];
+
+function usersToCSV(users: User[]): Record<string, unknown>[] {
+  return users.map((u) => ({
+    Name: u.name,
+    Email: u.email,
+    Phone: u.phone,
+    Role: u.role,
+    Department: u.department,
+    Designation: u.designation,
+    Branch: u.branchName,
+    Status: u.status,
+    "Performance Score": u.performanceScore,
+    "Join Date": u.joinDate,
+  }));
+}
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -276,7 +321,7 @@ function RoleMatrix() {
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" style={{ minWidth: "560px" }}>
           <thead>
             <tr className="border-b border-border bg-muted/20">
               <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-40">
@@ -348,7 +393,7 @@ function StaffFormFields({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Full Name *</Label>
           <Input
@@ -372,7 +417,7 @@ function StaffFormFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Phone</Label>
           <Input
@@ -395,7 +440,7 @@ function StaffFormFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Department</Label>
           <Select
@@ -440,7 +485,7 @@ function StaffFormFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Branch</Label>
           <Select
@@ -495,12 +540,13 @@ export default function StaffPage() {
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [branchFilter, setBranchFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filterValues, setFilterValues] = useState<FilterValues>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const emptyForm: StaffFormState = {
     name: "",
@@ -521,6 +567,8 @@ export default function StaffPage() {
 
   const filtered = useMemo(() => {
     let list = [...staffList];
+
+    // Toolbar filters
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -534,12 +582,28 @@ export default function StaffPage() {
     if (deptFilter !== "all")
       list = list.filter((u) => u.department === deptFilter);
     if (roleFilter !== "all") list = list.filter((u) => u.role === roleFilter);
-    if (branchFilter !== "all")
-      list = list.filter((u) => u.branchId === branchFilter);
     if (statusFilter !== "all")
       list = list.filter((u) => u.status === statusFilter);
+
+    // FilterPanel values
+    const fpName = filterValues.name as string | undefined;
+    const fpDept = filterValues.department as string | undefined;
+    const fpRole = filterValues.role as string | undefined;
+    const fpStatus = filterValues.status as string | undefined;
+
+    if (fpName?.trim()) {
+      const q = fpName.toLowerCase();
+      list = list.filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+      );
+    }
+    if (fpDept) list = list.filter((u) => u.department === fpDept);
+    if (fpRole) list = list.filter((u) => u.role === fpRole);
+    if (fpStatus) list = list.filter((u) => u.status === fpStatus);
+
     return list;
-  }, [staffList, search, deptFilter, roleFilter, branchFilter, statusFilter]);
+  }, [staffList, search, deptFilter, roleFilter, statusFilter, filterValues]);
 
   const stats = useMemo(() => {
     const active = staffList.filter((u) => u.status === "Active").length;
@@ -576,6 +640,20 @@ export default function StaffPage() {
     }, 1100);
   }
 
+  function handleExportAll() {
+    exportToCSV(usersToCSV(filtered), "staff_export");
+  }
+
+  function handleExportSelected() {
+    const selected = filtered.filter((u) => selectedIds.includes(u.id));
+    exportToCSV(usersToCSV(selected), "staff_selected_export");
+  }
+
+  function handleBulkDelete() {
+    console.log("Delete staff:", selectedIds);
+    setSelectedIds([]);
+  }
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
@@ -583,15 +661,27 @@ export default function StaffPage() {
         subtitle={`${staffList.length} team members across all branches`}
         breadcrumbs={[{ label: "Home" }, { label: "Staff" }]}
         actions={
-          <Button
-            size="sm"
-            className="rounded-xl gap-1.5"
-            onClick={openAdd}
-            data-ocid="staff.add_staff.open_modal_button"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Staff Member
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1.5"
+              onClick={handleExportAll}
+              data-ocid="staff.export_csv.button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-xl gap-1.5"
+              onClick={openAdd}
+              data-ocid="staff.add_staff.open_modal_button"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Add Staff Member</span>
+            </Button>
+          </div>
         }
       />
 
@@ -643,7 +733,7 @@ export default function StaffPage() {
         <button
           type="button"
           onClick={() => setActiveTab("directory")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === "directory" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${activeTab === "directory" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           data-ocid="staff.directory.tab"
         >
           <Users className="w-3.5 h-3.5 inline mr-1.5" />
@@ -652,7 +742,7 @@ export default function StaffPage() {
         <button
           type="button"
           onClick={() => setActiveTab("role-matrix")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === "role-matrix" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${activeTab === "role-matrix" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           data-ocid="staff.role_matrix.tab"
         >
           <Shield className="w-3.5 h-3.5 inline mr-1.5" />
@@ -669,11 +759,11 @@ export default function StaffPage() {
         >
           {/* Filters */}
           <div className="bg-card rounded-2xl border border-border shadow-card p-4">
-            <div className="flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-48">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <div className="relative flex-1 min-w-[160px] sm:min-w-48">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search name, email, role, branch…"
+                  placeholder="Search name, email…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 h-8 rounded-xl text-sm"
@@ -682,13 +772,13 @@ export default function StaffPage() {
               </div>
               <Select value={deptFilter} onValueChange={setDeptFilter}>
                 <SelectTrigger
-                  className="h-8 w-36 rounded-xl text-xs"
+                  className="h-8 w-28 sm:w-36 rounded-xl text-xs"
                   data-ocid="staff.department.select"
                 >
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="all">All Depts</SelectItem>
                   {DEPARTMENTS.map((d) => (
                     <SelectItem key={d} value={d}>
                       {d}
@@ -698,7 +788,7 @@ export default function StaffPage() {
               </Select>
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger
-                  className="h-8 w-36 rounded-xl text-xs"
+                  className="h-8 w-28 sm:w-36 rounded-xl text-xs"
                   data-ocid="staff.role.select"
                 >
                   <SelectValue placeholder="Role" />
@@ -712,26 +802,9 @@ export default function StaffPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger
-                  className="h-8 w-36 rounded-xl text-xs"
-                  data-ocid="staff.branch.select"
-                >
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  <SelectItem value="hq">Head Office</SelectItem>
-                  {mockBranches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger
-                  className="h-8 w-32 rounded-xl text-xs"
+                  className="h-8 w-28 sm:w-32 rounded-xl text-xs"
                   data-ocid="staff.status.select"
                 >
                   <SelectValue placeholder="Status" />
@@ -743,6 +816,21 @@ export default function StaffPage() {
                   <SelectItem value="On Leave">On Leave</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl gap-1.5 text-xs"
+                onClick={handleExportAll}
+                data-ocid="staff.filter_row.export_csv.button"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </Button>
+              <FilterPanel
+                filters={STAFF_FILTER_FIELDS}
+                presetKey="staff"
+                onFilterChange={setFilterValues}
+              />
               {/* View toggle */}
               <div className="flex items-center gap-1 bg-muted/40 rounded-xl p-1 border border-border ml-auto">
                 <button
@@ -792,7 +880,7 @@ export default function StaffPage() {
 
           {/* Grid view */}
           {viewMode === "grid" && filtered.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
               {loading
                 ? ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"].map((k) => (
                     <CardSkeleton key={k} />
@@ -817,16 +905,47 @@ export default function StaffPage() {
               data-ocid="staff.table"
             >
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" style={{ minWidth: "600px" }}>
                   <thead>
                     <tr className="border-b border-border bg-muted/20">
+                      <th className="px-3 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all"
+                          checked={
+                            filtered.length > 0 &&
+                            filtered.every((u) => selectedIds.includes(u.id))
+                          }
+                          onChange={() => {
+                            const allSelected = filtered.every((u) =>
+                              selectedIds.includes(u.id),
+                            );
+                            if (allSelected) {
+                              setSelectedIds((prev) =>
+                                prev.filter(
+                                  (id) => !filtered.some((u) => u.id === id),
+                                ),
+                              );
+                            } else {
+                              setSelectedIds((prev) => [
+                                ...prev,
+                                ...filtered
+                                  .filter((u) => !prev.includes(u.id))
+                                  .map((u) => u.id),
+                              ]);
+                            }
+                          }}
+                          className="rounded border-border accent-primary cursor-pointer"
+                          data-ocid="staff.table.select_all.checkbox"
+                        />
+                      </th>
                       {[
                         "Staff Member",
                         "Department",
                         "Role",
                         "Branch",
                         "Performance",
-                        "Attendance",
+                        "Status",
                         "Actions",
                       ].map((h) => (
                         <th
@@ -839,87 +958,109 @@ export default function StaffPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((user, idx) => (
-                      <motion.tr
-                        key={user.id}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.03 }}
-                        className="border-b border-border last:border-0 hover:bg-muted/10 transition-colors group"
-                        data-ocid={`staff.table.item.${idx + 1}`}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={user.avatar}
-                              alt={user.name}
-                              className="w-8 h-8 rounded-xl object-cover"
+                    {filtered.map((user, idx) => {
+                      const isSelected = selectedIds.includes(user.id);
+                      return (
+                        <motion.tr
+                          key={user.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.03 }}
+                          className={`border-b border-border last:border-0 hover:bg-muted/10 transition-colors group ${isSelected ? "bg-primary/5" : ""}`}
+                          data-ocid={`staff.table.item.${idx + 1}`}
+                        >
+                          <td className="px-3 py-3 w-10">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${user.name}`}
+                              checked={isSelected}
+                              onChange={() => {
+                                setSelectedIds((prev) =>
+                                  prev.includes(user.id)
+                                    ? prev.filter((id) => id !== user.id)
+                                    : [...prev, user.id],
+                                );
+                              }}
+                              className="rounded border-border accent-primary cursor-pointer"
+                              data-ocid={`staff.table.checkbox.${idx + 1}`}
                             />
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-foreground truncate">
-                                {user.name}
-                              </p>
-                              <p className="text-[10px] text-muted-foreground truncate">
-                                {user.email}
-                              </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <img
+                                src={user.avatar}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-xl object-cover"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-foreground truncate">
+                                  {user.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {user.email}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-xs text-foreground">
-                            {user.department}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {user.designation}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <RoleBadge role={user.role} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-xs text-foreground">
-                            {user.branchName}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <ScoreGauge value={user.performanceScore} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={user.status} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 rounded-lg"
-                              onClick={() => openEdit(user)}
-                              data-ocid={`staff.table.edit_button.${idx + 1}`}
-                            >
-                              <svg
-                                className="w-3.5 h-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs text-foreground">
+                              {user.department}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {user.designation}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <RoleBadge role={user.role} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-xs text-foreground">
+                              {user.branchName}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <ScoreGauge value={user.performanceScore} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={user.status} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 rounded-lg"
+                                onClick={() => openEdit(user)}
+                                data-ocid={`staff.table.edit_button.${idx + 1}`}
                               >
-                                <title>Edit</title>
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
-                              data-ocid={`staff.table.delete_button.${idx + 1}`}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
+                                <svg
+                                  className="w-3.5 h-3.5"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <title>Edit</title>
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
+                                onClick={() => {
+                                  console.log("Delete staff:", user.id);
+                                }}
+                                data-ocid={`staff.table.delete_button.${idx + 1}`}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -929,6 +1070,14 @@ export default function StaffPage() {
       )}
 
       {activeTab === "role-matrix" && <RoleMatrix />}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        count={selectedIds.length}
+        onExport={handleExportSelected}
+        onDelete={handleBulkDelete}
+        onDeselect={() => setSelectedIds([])}
+      />
 
       {/* Add Staff Modal */}
       <ModalForm

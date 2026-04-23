@@ -11,10 +11,10 @@ export function Layout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* Mobile overlay backdrop */}
+      {/* Mobile overlay backdrop — only on <md */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
           onClick={closeMobileSidebar}
           onKeyDown={(e) => e.key === "Escape" && closeMobileSidebar()}
           role="presentation"
@@ -23,15 +23,22 @@ export function Layout() {
 
       <Sidebar />
 
-      {/* Main content — pushes right on desktop, full width on mobile */}
+      {/* Main content
+          – mobile (<md): full width, no left margin
+          – tablet (md-lg): ml-16 (icon sidebar width)
+          – desktop (lg+): ml-16 collapsed | ml-60 expanded
+      */}
       <div
         className={cn(
           "flex flex-col flex-1 min-w-0 overflow-hidden transition-all duration-300",
+          // tablet: always icon-only (w-16)
+          "md:ml-16",
+          // desktop: respect collapsed state
           sidebarCollapsed ? "lg:ml-16" : "lg:ml-60",
         )}
       >
         <Navbar />
-        <main className="flex-1 overflow-y-auto scrollbar-thin bg-muted/20 p-3 sm:p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin bg-muted/20 p-3 sm:p-4 lg:p-6">
           <Outlet />
         </main>
         <footer className="border-t border-border bg-card px-4 sm:px-6 py-2.5 shrink-0">

@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -10,6 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Award,
+  Download,
   Medal,
   Minus,
   Search,
@@ -41,6 +43,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { toast } from "sonner";
 import { ChartCard } from "../components/shared/ChartCard";
 import { PageHeader } from "../components/shared/PageHeader";
 import { StatCard } from "../components/shared/StatCard";
@@ -49,6 +52,7 @@ import {
   mockLeaderboard,
   mockPerformanceMetrics,
 } from "../data/mockPerformance";
+import { exportToCSV } from "../utils/csvExport";
 
 // ─── Static chart data ────────────────────────────────────────────────────────
 const distributionData = [
@@ -121,6 +125,13 @@ const BRANCHES_LIST = [
   "Chennai South",
   "Kolkata North",
 ];
+const PERIOD_OPTIONS = [
+  "This Week",
+  "This Month",
+  "This Quarter",
+  "This Year",
+] as const;
+type PeriodOption = (typeof PERIOD_OPTIONS)[number];
 
 // Augmented leaderboard data
 const fullLeaderboard = mockLeaderboard.map((e, i) => {
@@ -269,7 +280,7 @@ function LowPerformerCard({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PerformancePage() {
-  const [period, setPeriod] = useState("This Month");
+  const [period, setPeriod] = useState<PeriodOption>("This Month");
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("All Departments");
   const [branchFilter, setBranchFilter] = useState("All Branches");
@@ -295,6 +306,23 @@ export default function PerformancePage() {
     return matchSearch && matchDept && matchBranch;
   });
 
+  function handleExportCSV() {
+    const rows = filteredLeaderboard.map((e) => ({
+      Rank: e.position,
+      Name: e.name,
+      Department: e.department,
+      Branch: e.branch,
+      Score: e.score,
+      "Tasks %": e.tasks,
+      "Leads %": e.leads,
+      "Attendance %": e.attendance,
+      "Target %": e.target,
+      Period: period,
+    }));
+    exportToCSV(rows as Record<string, unknown>[], "performance_leaderboard");
+    toast.success("Performance data exported to CSV");
+  }
+
   return (
     <div>
       <PageHeader
@@ -302,25 +330,39 @@ export default function PerformancePage() {
         subtitle="Staff and branch productivity, leaderboard, and trend analysis"
         breadcrumbs={[{ label: "Home" }, { label: "Performance" }]}
         actions={
-          <div className="flex rounded-xl overflow-hidden border border-border">
-            {["This Month", "This Quarter", "This Year"].map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                data-ocid={`performance.period_toggle.${p.toLowerCase().replace(/\s+/g, "_")}`}
-                className={`px-3 py-1.5 text-xs font-semibold transition-smooth ${period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"}`}
-              >
-                {p}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-xl overflow-hidden border border-border">
+              {(
+                ["This Month", "This Quarter", "This Year"] as PeriodOption[]
+              ).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPeriod(p)}
+                  data-ocid={`performance.period_toggle.${p.toLowerCase().replace(/\s+/g, "_")}`}
+                  className={`px-3 py-1.5 text-xs font-semibold transition-smooth ${period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60"}`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="rounded-xl gap-1.5"
+              data-ocid="performance.export_csv_button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </Button>
           </div>
         }
         data-ocid="performance.header"
       />
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {[
           {
             title: "Avg Performance",
@@ -524,7 +566,7 @@ export default function PerformancePage() {
                 — bottom 3 performers
               </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {bottom3.map((m, i) => (
                 <LowPerformerCard
                   key={m.userId}
@@ -544,7 +586,7 @@ export default function PerformancePage() {
         <TabsContent value="leaderboard" className="space-y-4">
           {/* Filters */}
           <div className="bg-card border border-border rounded-2xl shadow-card p-4 flex flex-wrap items-end gap-3">
-            <div className="relative flex-1 min-w-48">
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search staff…"
@@ -554,9 +596,29 @@ export default function PerformancePage() {
                 data-ocid="performance.leaderboard_search"
               />
             </div>
+            <Select
+              value={period}
+              onValueChange={(v) => setPeriod(v as PeriodOption)}
+            >
+              <SelectTrigger
+                className="h-8 text-xs w-36"
+                aria-label="Filter by period"
+                data-ocid="performance.leaderboard_period_select"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={deptFilter} onValueChange={setDeptFilter}>
               <SelectTrigger
                 className="h-8 text-xs w-44"
+                aria-label="Filter by department"
                 data-ocid="performance.leaderboard_dept_select"
               >
                 <SelectValue />
@@ -572,6 +634,7 @@ export default function PerformancePage() {
             <Select value={branchFilter} onValueChange={setBranchFilter}>
               <SelectTrigger
                 className="h-8 text-xs w-44"
+                aria-label="Filter by branch"
                 data-ocid="performance.leaderboard_branch_select"
               >
                 <SelectValue />
@@ -641,15 +704,7 @@ export default function PerformancePage() {
                         >
                           <td className="px-3 py-2.5">
                             <div
-                              className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
-                                e.position === 1
-                                  ? "bg-amber-100 text-amber-700"
-                                  : e.position === 2
-                                    ? "bg-muted text-foreground"
-                                    : e.position === 3
-                                      ? "bg-orange-100 text-orange-600"
-                                      : "border border-border text-muted-foreground"
-                              }`}
+                              className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${e.position === 1 ? "bg-amber-100 text-amber-700" : e.position === 2 ? "bg-muted text-foreground" : e.position === 3 ? "bg-orange-100 text-orange-600" : "border border-border text-muted-foreground"}`}
                             >
                               {e.position === 1 ? (
                                 <Trophy className="w-3.5 h-3.5" />
@@ -785,89 +840,91 @@ export default function PerformancePage() {
             className="bg-card border border-border rounded-2xl shadow-card overflow-hidden"
             data-ocid="performance.branch_comparison_table"
           >
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30 border-b border-border">
-                <tr>
-                  {[
-                    "Branch",
-                    "Manager",
-                    "Avg Score",
-                    "Tasks %",
-                    "Leads %",
-                    "Rank",
-                    "Change",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {mockBranchPerformance
-                  .sort((a, b) => a.rank - b.rank)
-                  .map((b, i) => {
-                    const managers = [
-                      "Sunita Reddy",
-                      "Amit Patel",
-                      "Pooja Verma",
-                      "Nisha Thomas",
-                      "Suresh Babu",
-                    ];
-                    const changes = [2, 0, -1, 1, 0];
-                    const ch = changes[i] ?? 0;
-                    return (
-                      <tr
-                        key={b.branchId}
-                        className="hover:bg-muted/20 transition-smooth"
-                        data-ocid={`performance.branch_comparison_table.item.${i + 1}`}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead className="bg-muted/30 border-b border-border">
+                  <tr>
+                    {[
+                      "Branch",
+                      "Manager",
+                      "Avg Score",
+                      "Tasks %",
+                      "Leads %",
+                      "Rank",
+                      "Change",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground"
                       >
-                        <td className="px-4 py-2.5 text-xs font-semibold text-foreground">
-                          {b.branchName}
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                          {managers[i]}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span
-                            className={`text-sm font-display font-bold ${b.score >= 90 ? "text-green-600" : b.score >= 85 ? "text-primary" : "text-amber-600"}`}
-                          >
-                            {b.score}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-foreground">
-                          {b.taskCompletion}%
-                        </td>
-                        <td className="px-4 py-2.5 text-xs text-foreground">
-                          {Math.round((b.leadsConverted / 200) * 100)}%
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground">
-                            #{b.rank}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span
-                            className={`flex items-center gap-0.5 text-xs font-semibold ${ch > 0 ? "text-green-600" : ch < 0 ? "text-red-500" : "text-muted-foreground"}`}
-                          >
-                            {ch > 0 ? (
-                              <TrendingUp className="w-3.5 h-3.5" />
-                            ) : ch < 0 ? (
-                              <TrendingDown className="w-3.5 h-3.5" />
-                            ) : (
-                              <Minus className="w-3.5 h-3.5" />
-                            )}
-                            {ch !== 0 && `${Math.abs(ch)}`}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {mockBranchPerformance
+                    .sort((a, b) => a.rank - b.rank)
+                    .map((b, i) => {
+                      const managers = [
+                        "Sunita Reddy",
+                        "Amit Patel",
+                        "Pooja Verma",
+                        "Nisha Thomas",
+                        "Suresh Babu",
+                      ];
+                      const changes = [2, 0, -1, 1, 0];
+                      const ch = changes[i] ?? 0;
+                      return (
+                        <tr
+                          key={b.branchId}
+                          className="hover:bg-muted/20 transition-smooth"
+                          data-ocid={`performance.branch_comparison_table.item.${i + 1}`}
+                        >
+                          <td className="px-4 py-2.5 text-xs font-semibold text-foreground">
+                            {b.branchName}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                            {managers[i]}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span
+                              className={`text-sm font-display font-bold ${b.score >= 90 ? "text-green-600" : b.score >= 85 ? "text-primary" : "text-amber-600"}`}
+                            >
+                              {b.score}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-foreground">
+                            {b.taskCompletion}%
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-foreground">
+                            {Math.round((b.leadsConverted / 200) * 100)}%
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center text-xs font-bold text-foreground">
+                              #{b.rank}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span
+                              className={`flex items-center gap-0.5 text-xs font-semibold ${ch > 0 ? "text-green-600" : ch < 0 ? "text-red-500" : "text-muted-foreground"}`}
+                            >
+                              {ch > 0 ? (
+                                <TrendingUp className="w-3.5 h-3.5" />
+                              ) : ch < 0 ? (
+                                <TrendingDown className="w-3.5 h-3.5" />
+                              ) : (
+                                <Minus className="w-3.5 h-3.5" />
+                              )}
+                              {ch !== 0 && `${Math.abs(ch)}`}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </TabsContent>
 

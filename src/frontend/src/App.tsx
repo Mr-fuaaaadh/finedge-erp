@@ -28,6 +28,7 @@ const TasksPage = lazy(() => import("./pages/TasksPage"));
 const AttendancePage = lazy(() => import("./pages/AttendancePage"));
 const FinancePage = lazy(() => import("./pages/FinancePage"));
 const PerformancePage = lazy(() => import("./pages/PerformancePage"));
+const AuditLogsPage = lazy(() => import("./pages/AuditLogsPage"));
 
 function PageSuspense({ children }: { children: React.ReactNode }) {
   return (
@@ -192,6 +193,16 @@ const performanceRoute = createRoute({
   ),
 });
 
+const auditLogsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/audit-logs",
+  component: () => (
+    <PageSuspense>
+      <AuditLogsPage />
+    </PageSuspense>
+  ),
+});
+
 // Root redirect
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -214,6 +225,7 @@ const routeTree = rootRoute.addChildren([
     attendanceRoute,
     financeRoute,
     performanceRoute,
+    auditLogsRoute,
   ]),
 ]);
 

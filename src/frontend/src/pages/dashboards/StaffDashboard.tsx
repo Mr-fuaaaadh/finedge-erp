@@ -1,9 +1,11 @@
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Award,
   CalendarDays,
   CheckCircle2,
   Clock,
+  Download,
   Phone,
   Star,
   Target,
@@ -20,6 +22,7 @@ import { StatusBadge } from "../../components/shared/StatusBadge";
 import { mockLeads } from "../../data/mockLeads";
 import { mockTasks } from "../../data/mockTasks";
 import { useAuth } from "../../hooks/useAuth";
+import { exportToCSV } from "../../utils/csvExport";
 
 const today = new Date();
 
@@ -123,27 +126,48 @@ export default function StaffDashboard() {
   const hour = today.getHours();
   const greeting = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
 
+  function handleExportCSV() {
+    const exportData = [
+      ...kpis.map((k) => ({
+        Category: "KPI",
+        Metric: k.title,
+        Value: k.value,
+        "Change (%)": k.change,
+      })),
+      ...myTasks.map((t) => ({
+        Category: "Task",
+        Metric: t.title,
+        Value: t.status,
+        "Change (%)": t.progress,
+      })),
+    ];
+    exportToCSV(
+      exportData as Record<string, unknown>[],
+      `my-dashboard-${user.name.replace(/\s+/g, "-").toLowerCase()}`,
+    );
+  }
+
   return (
     <div>
       {/* Welcome Banner */}
       <motion.div
-        className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 shadow-card"
+        className="mb-4 sm:mb-6 p-3 sm:p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 shadow-card"
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         data-ocid="staff_dashboard.welcome"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <img
             src={user.avatar}
             alt={user.name}
-            className="w-12 h-12 rounded-xl border-2 border-primary/30 shrink-0"
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl border-2 border-primary/30 shrink-0"
           />
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-display font-bold text-foreground">
+            <h1 className="text-base sm:text-lg font-display font-bold text-foreground truncate">
               Good {greeting}, {user.name.split(" ")[0]}! 👋
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
               {today.toLocaleDateString("en-IN", {
                 weekday: "long",
                 year: "numeric",
@@ -171,11 +195,24 @@ export default function StaffDashboard() {
         title="My Dashboard"
         subtitle="Personal performance and task overview"
         breadcrumbs={[{ label: "Dashboard" }, { label: user.name }]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-1.5 text-xs"
+            data-ocid="staff_dashboard.export_button"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Export My Data</span>
+            <span className="xs:hidden">Export</span>
+          </Button>
+        }
         data-ocid="staff_dashboard.header"
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* KPI Cards — 2 col on mobile, 4 on md+ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -195,8 +232,8 @@ export default function StaffDashboard() {
         ))}
       </div>
 
-      {/* Tasks + Leads */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* Tasks + Leads — stack on mobile, 2 cols on md+ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
           initial={{ opacity: 0, x: -12 }}
           animate={{ opacity: 1, x: 0 }}
@@ -275,14 +312,14 @@ export default function StaffDashboard() {
             subtitle="5 most recently updated"
             data-ocid="staff_dashboard.leads_table"
           >
-            <div className="mt-1">
-              <table className="w-full text-xs">
+            <div className="mt-1 overflow-x-auto">
+              <table className="w-full text-xs min-w-[280px]">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
                       Name
                     </th>
-                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
+                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground hidden sm:table-cell">
                       Company
                     </th>
                     <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
@@ -303,7 +340,7 @@ export default function StaffDashboard() {
                       <td className="py-2.5 px-1 font-semibold text-foreground">
                         {lead.name}
                       </td>
-                      <td className="py-2.5 px-1 text-muted-foreground truncate max-w-[80px]">
+                      <td className="py-2.5 px-1 text-muted-foreground truncate max-w-[80px] hidden sm:table-cell">
                         {lead.company}
                       </td>
                       <td className="py-2.5 px-1">
@@ -333,7 +370,7 @@ export default function StaffDashboard() {
       </div>
 
       {/* Follow-ups Timeline + Daily Targets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

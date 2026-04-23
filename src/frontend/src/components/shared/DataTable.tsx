@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -31,12 +32,14 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   searchKeys?: (keyof T)[];
   pageSize?: number;
+  selectable?: boolean;
+  onSelectionChange?: (ids: string[]) => void;
   "data-ocid"?: string;
 }
 
 type SortDir = "asc" | "desc" | null;
 
-export function DataTable<T extends object>({
+export function DataTable<T extends { id: string }>({
   data,
   columns,
   loading = false,
@@ -44,11 +47,14 @@ export function DataTable<T extends object>({
   searchPlaceholder = "Search…",
   searchKeys = [],
   pageSize = 10,
+  selectable = false,
+  onSelectionChange,
   "data-ocid": dataOcid,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const debouncedSearch = useDebounce(search, 250);
 
   const filtered = useMemo(() => {
@@ -81,6 +87,29 @@ export function DataTable<T extends object>({
   });
 
   const pageData = filtered.slice(pagination.startIndex, pagination.endIndex);
+  const pageIds = pageData.map((r) => r.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id));
+
+  const toggleRow = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+    onSelectionChange?.(Array.from(next));
+  };
+
+  const toggleAll = () => {
+    const next = new Set(selectedIds);
+    if (allPageSelected) {
+      for (const id of pageIds) next.delete(id);
+    } else {
+      for (const id of pageIds) next.add(id);
+    }
+    setSelectedIds(next);
+    onSelectionChange?.(Array.from(next));
+  };
 
   const handleSort = (col: Column<T>) => {
     if (!col.sortable) return;
@@ -105,6 +134,8 @@ export function DataTable<T extends object>({
     );
   }
 
+  const showSelectable = selectable && !!onSelectionChange;
+
   return (
     <div data-ocid={dataOcid} className="space-y-3">
       {searchable && (
@@ -124,15 +155,31 @@ export function DataTable<T extends object>({
       )}
 
       <div className="rounded-2xl border border-border overflow-hidden">
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-sm min-w-[500px]">
+        <div className="overflow-x-auto w-full scrollbar-thin">
+          <table className="w-full text-sm" style={{ minWidth: "500px" }}>
             <thead className="bg-muted/30 border-b border-border">
               <tr>
+                {showSelectable && (
+                  <th className="px-2 sm:px-3 py-3 w-10">
+                    <Checkbox
+                      checked={allPageSelected}
+                      data-state={
+                        somePageSelected && !allPageSelected
+                          ? "indeterminate"
+                          : undefined
+                      }
+                      onCheckedChange={toggleAll}
+                      aria-label="Select all rows on this page"
+                      data-ocid={`${dataOcid}.select_all`}
+                      className="rounded"
+                    />
+                  </th>
+                )}
                 {columns.map((col) => (
                   <th
                     key={String(col.key)}
                     className={cn(
-                      "px-3 sm:px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap",
+                      "px-2 sm:px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap",
                       col.sortable && "cursor-pointer hover:text-foreground",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
@@ -142,6 +189,15 @@ export function DataTable<T extends object>({
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") handleSort(col);
                     }}
+                    tabIndex={col.sortable ? 0 : undefined}
+                    role={col.sortable ? "button" : undefined}
+                    aria-sort={
+                      sortKey === String(col.key)
+                        ? sortDir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
                   >
                     <div
                       className={cn(
@@ -179,7 +235,7 @@ export function DataTable<T extends object>({
             <tbody className="divide-y divide-border">
               {pageData.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length}>
+                  <td colSpan={columns.length + (showSelectable ? 1 : 0)}>
                     <EmptyState
                       title="No results found"
                       description="Try adjusting your search or filters."
@@ -188,33 +244,51 @@ export function DataTable<T extends object>({
                   </td>
                 </tr>
               ) : (
-                pageData.map((row, i) => (
-                  <tr
-                    key={`row-${pagination.startIndex + i}`}
-                    data-ocid={`${dataOcid}.row.${pagination.startIndex + i + 1}`}
-                    className="hover:bg-muted/20 transition-smooth min-h-[44px]"
-                  >
-                    {columns.map((col) => (
-                      <td
-                        key={String(col.key)}
-                        className={cn(
-                          "px-3 sm:px-4 py-3 text-sm text-foreground",
-                          col.align === "right" && "text-right",
-                          col.align === "center" && "text-center",
-                          col.className,
-                        )}
-                      >
-                        {col.render
-                          ? col.render(row)
-                          : String(
-                              (row as Record<keyof T, unknown>)[
-                                col.key as keyof T
-                              ] ?? "—",
-                            )}
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                pageData.map((row, i) => {
+                  const isSelected = selectedIds.has(row.id);
+                  const rowIndex = pagination.startIndex + i + 1;
+                  return (
+                    <tr
+                      key={`row-${pagination.startIndex + i}`}
+                      data-ocid={`${dataOcid}.row.${rowIndex}`}
+                      className={cn(
+                        "hover:bg-muted/20 transition-smooth",
+                        isSelected && "bg-primary/5",
+                      )}
+                    >
+                      {showSelectable && (
+                        <td className="px-2 sm:px-3 py-2 sm:py-3 w-10">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleRow(row.id)}
+                            aria-label={`Select row ${rowIndex}`}
+                            data-ocid={`${dataOcid}.checkbox.${rowIndex}`}
+                            className="rounded"
+                          />
+                        </td>
+                      )}
+                      {columns.map((col) => (
+                        <td
+                          key={String(col.key)}
+                          className={cn(
+                            "px-2 sm:px-4 py-2 sm:py-3 text-sm text-foreground",
+                            col.align === "right" && "text-right",
+                            col.align === "center" && "text-center",
+                            col.className,
+                          )}
+                        >
+                          {col.render
+                            ? col.render(row)
+                            : String(
+                                (row as Record<keyof T, unknown>)[
+                                  col.key as keyof T
+                                ] ?? "—",
+                              )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

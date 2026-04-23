@@ -1,13 +1,12 @@
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   CalendarDays,
   CheckSquare,
   Clock,
   DollarSign,
+  Download,
   Target,
-  TrendingUp,
   Users,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -35,6 +34,7 @@ import { mockLeads } from "../../data/mockLeads";
 import { mockTasks } from "../../data/mockTasks";
 import { mockUsers } from "../../data/mockUsers";
 import { useAuth } from "../../hooks/useAuth";
+import { exportToCSV } from "../../utils/csvExport";
 
 const CHART_PRIMARY = "oklch(0.42 0.08 265)";
 const CHART_SECONDARY = "oklch(0.60 0.10 185)";
@@ -142,17 +142,43 @@ export default function BranchDashboard() {
     },
   ];
 
+  function handleExportCSV() {
+    const exportData = kpis.map((k) => ({
+      Metric: k.title,
+      Value: k.value,
+      "Change (%)": k.change,
+      Branch: user.branchName,
+    }));
+    exportToCSV(
+      exportData as Record<string, unknown>[],
+      `branch-dashboard-${user.branchName.toLowerCase().replace(/\s+/g, "-")}`,
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title={`${user.branchName} Dashboard`}
         subtitle={`Branch performance overview — ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
         breadcrumbs={[{ label: "Dashboard" }, { label: user.branchName }]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-1.5 text-xs"
+            data-ocid="branch_dashboard.export_button"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Export CSV</span>
+            <span className="xs:hidden">Export</span>
+          </Button>
+        }
         data-ocid="branch_dashboard.header"
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -173,7 +199,7 @@ export default function BranchDashboard() {
       </div>
 
       {/* Staff Targets + Lead Conversion Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
           initial={{ opacity: 0, x: -12 }}
           animate={{ opacity: 1, x: 0 }}
@@ -316,9 +342,9 @@ export default function BranchDashboard() {
       </div>
 
       {/* Monthly Performance + Upcoming Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <motion.div
-          className="lg:col-span-2"
+          className="md:col-span-2 lg:col-span-2"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
@@ -445,7 +471,7 @@ export default function BranchDashboard() {
                     </p>
                     <PriorityBadge priority={task.priority} />
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <CalendarDays className="w-3 h-3 text-muted-foreground" />
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(task.dueDate).toLocaleDateString("en-IN", {

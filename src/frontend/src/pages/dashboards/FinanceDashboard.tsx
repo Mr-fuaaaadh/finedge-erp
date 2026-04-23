@@ -1,7 +1,9 @@
+import { Button } from "@/components/ui/button";
 import {
   ArrowDownRight,
   ArrowUpRight,
   DollarSign,
+  Download,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -31,6 +33,7 @@ import {
   mockBranchFinanceSummary,
   mockMonthlyFinance,
 } from "../../data/mockFinance";
+import { exportToCSV } from "../../utils/csvExport";
 
 const CHART_PRIMARY = "oklch(0.42 0.08 265)";
 const CHART_SECONDARY = "oklch(0.60 0.10 185)";
@@ -105,17 +108,50 @@ export default function FinanceDashboard() {
     },
   ];
 
+  function handleExportCSV() {
+    const exportData = [
+      ...kpis.map((k) => ({
+        Category: "KPI",
+        Metric: k.title,
+        Value: k.value,
+        "Change (%)": k.change,
+      })),
+      ...branchTable.map((b) => ({
+        Category: "Branch",
+        Metric: b.branchName,
+        Revenue: `₹${(b.totalRevenue / 1000000).toFixed(2)}M`,
+        Expenses: `₹${(b.totalExpenses / 1000000).toFixed(2)}M`,
+        Profit: `₹${(b.totalProfit / 1000000).toFixed(2)}M`,
+        "Margin (%)": b.profitMargin,
+      })),
+    ];
+    exportToCSV(exportData as Record<string, unknown>[], "finance-dashboard");
+  }
+
   return (
     <div>
       <PageHeader
         title="Finance Dashboard"
         subtitle={`Enterprise financial overview — FY 2024 · As of ${new Date().toLocaleDateString("en-IN", { month: "long", day: "numeric", year: "numeric" })}`}
         breadcrumbs={[{ label: "Dashboard" }, { label: "Finance" }]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-1.5 text-xs"
+            data-ocid="finance_dashboard.export_button"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Export CSV</span>
+            <span className="xs:hidden">Export</span>
+          </Button>
+        }
         data-ocid="finance_dashboard.header"
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* KPI Cards — 2 col on mobile, 4 on md+ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -241,8 +277,8 @@ export default function FinanceDashboard() {
           subtitle="Full-year consolidated per branch"
           data-ocid="finance_dashboard.branch_revenue_table"
         >
-          <div className="overflow-x-auto mt-1">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto mt-1 -mx-1">
+            <table className="w-full text-xs min-w-[520px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground">
@@ -254,13 +290,13 @@ export default function FinanceDashboard() {
                   <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
                     Revenue
                   </th>
-                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
+                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground hidden sm:table-cell">
                     Expenses
                   </th>
                   <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
                     Net Profit
                   </th>
-                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
+                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground hidden md:table-cell">
                     Margin
                   </th>
                   <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
@@ -284,13 +320,13 @@ export default function FinanceDashboard() {
                     <td className="py-3 px-2 text-right font-semibold text-foreground">
                       ₹{(branch.totalRevenue / 1000000).toFixed(2)}M
                     </td>
-                    <td className="py-3 px-2 text-right text-muted-foreground">
+                    <td className="py-3 px-2 text-right text-muted-foreground hidden sm:table-cell">
                       ₹{(branch.totalExpenses / 1000000).toFixed(2)}M
                     </td>
                     <td className="py-3 px-2 text-right font-semibold text-green-600 dark:text-green-400">
                       ₹{(branch.totalProfit / 1000000).toFixed(2)}M
                     </td>
-                    <td className="py-3 px-2 text-right">
+                    <td className="py-3 px-2 text-right hidden md:table-cell">
                       <span
                         className={`font-bold ${branch.profitMargin >= 40 ? "text-green-600 dark:text-green-400" : "text-amber-600"}`}
                       >
@@ -323,13 +359,13 @@ export default function FinanceDashboard() {
                   <td className="py-2.5 px-2 text-right font-bold text-foreground">
                     ₹{(totalRevenue / 1000000).toFixed(2)}M
                   </td>
-                  <td className="py-2.5 px-2 text-right font-bold text-muted-foreground">
+                  <td className="py-2.5 px-2 text-right font-bold text-muted-foreground hidden sm:table-cell">
                     ₹{(totalExpenses / 1000000).toFixed(2)}M
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-green-600 dark:text-green-400">
                     ₹{(netProfit / 1000000).toFixed(2)}M
                   </td>
-                  <td className="py-2.5 px-2 text-right font-bold text-primary">
+                  <td className="py-2.5 px-2 text-right font-bold text-primary hidden md:table-cell">
                     {profitMargin}%
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-green-600">
@@ -343,7 +379,7 @@ export default function FinanceDashboard() {
       </motion.div>
 
       {/* Loan Disbursement + Investment Portfolio + Repayment Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -527,7 +563,7 @@ export default function FinanceDashboard() {
                   Total Disbursed
                 </p>
               </div>
-              <div className="text-center p-2 rounded-xl bg-green-50 dark:bg-green-900/20">
+              <div className="text-center p-2 rounded-xl bg-primary/5">
                 <p className="text-sm font-display font-bold text-green-700 dark:text-green-400">
                   ₹{((loanPortfolio * 0.82) / 1000000).toFixed(1)}M
                 </p>

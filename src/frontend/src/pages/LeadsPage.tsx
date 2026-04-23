@@ -24,6 +24,7 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
+  Download,
   IndianRupee,
   LayoutGrid,
   List,
@@ -60,6 +61,7 @@ import { StatusBadge } from "../components/shared/StatusBadge";
 import { Timeline } from "../components/shared/Timeline";
 import { mockLeads } from "../data/mockLeads";
 import type { Lead, LeadSource, LeadStatus } from "../types";
+import { exportToCSV } from "../utils/csvExport";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +114,23 @@ const SOURCE_LABELS: LeadSource[] = [
   "Email Campaign",
   "Walk-in",
 ];
+
+function leadsToCSV(leads: Lead[]): Record<string, unknown>[] {
+  return leads.map((l) => ({
+    Name: l.name,
+    Company: l.company,
+    Email: l.email,
+    Phone: l.phone,
+    Source: l.source,
+    Status: l.status,
+    "Assigned To": l.assignedTo,
+    Branch: l.branchName,
+    Product: l.product,
+    "Value (₹)": l.value,
+    "Follow Up": l.followUpDate ?? "",
+    Created: l.createdAt,
+  }));
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -376,7 +395,7 @@ function LeadDetailSheet({
           defaultValue="overview"
           className="flex flex-col flex-1 overflow-hidden"
         >
-          <TabsList className="mx-6 mt-4 mb-2 rounded-xl self-start">
+          <TabsList className="mx-6 mt-4 mb-2 rounded-xl self-start overflow-x-auto flex-wrap">
             {["overview", "activity", "notes", "calls", "meetings"].map((t) => (
               <TabsTrigger
                 key={t}
@@ -392,7 +411,7 @@ function LeadDetailSheet({
           <ScrollArea className="flex-1 px-6 pb-6">
             {/* Overview */}
             <TabsContent value="overview" className="mt-0 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { icon: Mail, label: "Email", value: lead.email },
                   { icon: Phone, label: "Phone", value: lead.phone },
@@ -652,8 +671,8 @@ function LeadAnalytics({ leads }: { leads: Lead[] }) {
           <TrendingUp className="w-4 h-4 text-primary" />
           Lead Sources
         </p>
-        <div className="flex gap-4 items-center">
-          <ResponsiveContainer width="50%" height={180}>
+        <div className="flex gap-4 items-center flex-wrap sm:flex-nowrap">
+          <ResponsiveContainer width="100%" height={180} minWidth={140}>
             <PieChart>
               <Pie
                 data={sourceData}
@@ -675,7 +694,7 @@ function LeadAnalytics({ leads }: { leads: Lead[] }) {
               />
             </PieChart>
           </ResponsiveContainer>
-          <div className="flex-1 space-y-1.5">
+          <div className="flex-1 min-w-[120px] space-y-1.5">
             {sourceData.map((d) => (
               <div key={d.source} className="flex items-center gap-2">
                 <span
@@ -821,6 +840,10 @@ export default function LeadsPage() {
 
   const columns = useMemo(() => buildColumns(openLead), [openLead]);
 
+  function handleExportCSV() {
+    exportToCSV(leadsToCSV(filteredLeads), "leads_export");
+  }
+
   return (
     <div>
       <PageHeader
@@ -884,7 +907,7 @@ export default function LeadsPage() {
 
       {/* Views */}
       <Tabs defaultValue="kanban" data-ocid="leads.view_tabs">
-        <TabsList className="mb-4 rounded-xl overflow-x-auto flex-wrap">
+        <TabsList className="mb-4 rounded-xl">
           <TabsTrigger
             value="kanban"
             data-ocid="leads.kanban.tab"
@@ -903,25 +926,39 @@ export default function LeadsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Kanban */}
+        {/* Kanban — desktop: horizontal scroll; mobile: vertical columns */}
         <TabsContent value="kanban">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex gap-3 overflow-x-auto pb-3"
-          >
-            {STATUSES.map((status) => (
-              <KanbanColumn
-                key={status}
-                status={status}
-                leads={leads.filter((l) => l.status === status)}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onSelect={openLead}
-                onAddNew={() => setShowAddModal(true)}
-              />
-            ))}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            {/* Mobile: stacked columns */}
+            <div className="flex flex-col gap-3 md:hidden">
+              {STATUSES.map((status) => (
+                <KanbanColumn
+                  key={status}
+                  status={status}
+                  leads={leads.filter((l) => l.status === status)}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onSelect={openLead}
+                  onAddNew={() => setShowAddModal(true)}
+                />
+              ))}
+            </div>
+            {/* Desktop: horizontal scroll */}
+            <div className="hidden md:flex gap-3 overflow-x-auto pb-3">
+              {STATUSES.map((status) => (
+                <KanbanColumn
+                  key={status}
+                  status={status}
+                  leads={leads.filter((l) => l.status === status)}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onSelect={openLead}
+                  onAddNew={() => setShowAddModal(true)}
+                />
+              ))}
+            </div>
           </motion.div>
         </TabsContent>
 
@@ -933,8 +970,8 @@ export default function LeadsPage() {
             className="bg-card rounded-2xl border border-border shadow-card"
           >
             {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-              <div className="relative flex-1 min-w-[180px]">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border">
+              <div className="relative flex-1 min-w-[160px]">
                 <Input
                   placeholder="Search leads…"
                   value={search}
@@ -948,7 +985,7 @@ export default function LeadsPage() {
                 onValueChange={(v) => setFilterStatus(v as LeadStatus | "All")}
               >
                 <SelectTrigger
-                  className="w-[130px] rounded-xl h-8 text-xs"
+                  className="w-[120px] sm:w-[130px] rounded-xl h-8 text-xs"
                   data-ocid="leads.table.status.select"
                 >
                   <SelectValue placeholder="Status" />
@@ -967,7 +1004,7 @@ export default function LeadsPage() {
                 onValueChange={(v) => setFilterSource(v as LeadSource | "All")}
               >
                 <SelectTrigger
-                  className="w-[150px] rounded-xl h-8 text-xs"
+                  className="w-[130px] sm:w-[150px] rounded-xl h-8 text-xs"
                   data-ocid="leads.table.source.select"
                 >
                   <SelectValue placeholder="Source" />
@@ -981,8 +1018,18 @@ export default function LeadsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-xl gap-1.5 text-xs"
+                onClick={handleExportCSV}
+                data-ocid="leads.table.export_csv.button"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Export CSV</span>
+              </Button>
             </div>
-            <div className="p-5">
+            <div className="overflow-x-auto p-5">
               <DataTable
                 data={filteredLeads}
                 columns={columns}
@@ -1017,7 +1064,7 @@ export default function LeadsPage() {
         data-ocid="add_lead"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Contact Name</Label>
               <Input
@@ -1035,7 +1082,7 @@ export default function LeadsPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Phone</Label>
               <Input
@@ -1054,7 +1101,7 @@ export default function LeadsPage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Lead Source</Label>
               <Select>

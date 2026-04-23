@@ -1,15 +1,24 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  BarChart3,
   DollarSign,
+  Download,
   Layers,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -25,6 +34,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { toast } from "sonner";
 import { ChartCard } from "../components/shared/ChartCard";
 import { PageHeader } from "../components/shared/PageHeader";
 import { StatCard } from "../components/shared/StatCard";
@@ -32,6 +42,7 @@ import {
   mockBranchFinanceSummary,
   mockMonthlyFinance,
 } from "../data/mockFinance";
+import { exportToCSV } from "../utils/csvExport";
 
 // ─── Static mock data ──────────────────────────────────────────────────────────
 const expenseBreakdown = [
@@ -167,6 +178,14 @@ const branchRevHorizontal = mockBranchFinanceSummary.map((b) => ({
   expenses: Math.round(b.totalExpenses / 1000000),
 }));
 
+const PERIOD_OPTIONS = [
+  "This Month",
+  "Last Month",
+  "This Quarter",
+  "This Year",
+] as const;
+type PeriodOption = (typeof PERIOD_OPTIONS)[number];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -174,8 +193,75 @@ function fmt(n: number): string {
   return `$${n}`;
 }
 
+const MANAGERS = [
+  "Amit Patel",
+  "Sunita Reddy",
+  "Pooja Verma",
+  "Suresh Babu",
+  "Nisha Thomas",
+];
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function FinancePage() {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [branchPeriod, setBranchPeriod] = useState<PeriodOption>("This Month");
+
+  const filteredBranchData = useMemo(() => {
+    return mockBranchFinanceSummary.filter((b) => {
+      if (
+        branchSearch &&
+        !b.branchName.toLowerCase().includes(branchSearch.toLowerCase())
+      )
+        return false;
+      return true;
+    });
+  }, [branchSearch]);
+
+  function handleExportCSV() {
+    if (activeTab === "branch") {
+      const rows = filteredBranchData.map((b, i) => ({
+        Branch: b.branchName,
+        Manager: MANAGERS[i] ?? "",
+        Revenue: `₹${(b.totalRevenue / 1000000).toFixed(2)}M`,
+        Expenses: `₹${(b.totalExpenses / 1000000).toFixed(2)}M`,
+        "Net Profit": `₹${(b.totalProfit / 1000000).toFixed(2)}M`,
+        "Margin %": b.profitMargin,
+        Period: branchPeriod,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "finance_branch_revenue");
+    } else if (activeTab === "loans") {
+      const rows = loanPortfolio.map((l) => ({
+        "Loan ID": l.id,
+        Borrower: l.borrower,
+        Amount: fmt(l.amount),
+        Disbursed: l.disbursed,
+        Tenure: l.tenure,
+        "Repaid %": l.repaid,
+        Status: l.status,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "finance_loan_portfolio");
+    } else if (activeTab === "investments") {
+      const rows = investmentTable.map((inv) => ({
+        "Asset Class": inv.asset,
+        "Principal (₹M)": inv.principal,
+        "Current Value (₹M)": inv.current,
+        "Returns %": inv.returns,
+        "Maturity Date": inv.maturity,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "finance_investments");
+    } else {
+      const rows = mockMonthlyFinance.map((m) => ({
+        Month: m.month,
+        Revenue: m.revenue,
+        Expenses: m.expenses,
+        Profit: m.profit,
+      }));
+      exportToCSV(rows as Record<string, unknown>[], "finance_overview");
+    }
+    toast.success("Finance data exported to CSV");
+  }
+
   return (
     <div>
       <PageHeader
@@ -183,7 +269,7 @@ export default function FinancePage() {
         subtitle="Revenue, expenses, P&L analytics, loans, and investments"
         breadcrumbs={[{ label: "Home" }, { label: "Finance" }]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <select
               className="h-8 px-2 text-xs border border-input rounded-lg bg-background text-foreground"
               data-ocid="finance.period_select"
@@ -195,10 +281,12 @@ export default function FinancePage() {
             <Button
               variant="outline"
               size="sm"
-              data-ocid="finance.export_button"
+              onClick={handleExportCSV}
+              className="rounded-xl gap-1.5"
+              data-ocid="finance.export_csv_button"
             >
-              <BarChart3 className="w-3.5 h-3.5 mr-2" />
-              Export
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
             </Button>
           </div>
         }
@@ -206,7 +294,7 @@ export default function FinancePage() {
       />
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {[
           {
             title: "Total Revenue",
@@ -255,7 +343,7 @@ export default function FinancePage() {
         ))}
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList
           className="mb-4 overflow-x-auto flex-wrap"
           data-ocid="finance.tabs"
@@ -420,7 +508,7 @@ export default function FinancePage() {
               subtitle="Category-wise distribution"
               data-ocid="finance.expense_donut"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
                 <ResponsiveContainer width={160} height={160}>
                   <PieChart>
                     <Pie
@@ -462,6 +550,53 @@ export default function FinancePage() {
 
         {/* ── Branch Revenue ── */}
         <TabsContent value="branch" className="space-y-4">
+          {/* Inline filter row: branch name search + period select */}
+          <div className="bg-card border border-border rounded-2xl shadow-card p-3 sm:p-4 flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[180px]">
+              <label
+                htmlFor="branch-search"
+                className="text-[11px] font-semibold text-muted-foreground mb-1 block"
+              >
+                Branch Name
+              </label>
+              <Input
+                id="branch-search"
+                placeholder="Search branch…"
+                value={branchSearch}
+                onChange={(e) => setBranchSearch(e.target.value)}
+                className="h-8 text-xs"
+                data-ocid="finance.branch_search_input"
+              />
+            </div>
+            <div className="w-44 shrink-0">
+              <p className="text-[11px] font-semibold text-muted-foreground mb-1">
+                Period
+              </p>
+              <Select
+                value={branchPeriod}
+                onValueChange={(v) => setBranchPeriod(v as PeriodOption)}
+              >
+                <SelectTrigger
+                  className="h-8 text-xs"
+                  aria-label="Filter by period"
+                  data-ocid="finance.branch_period_select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-xs text-muted-foreground self-end pb-1.5">
+              {filteredBranchData.length} branches
+            </span>
+          </div>
+
           <ChartCard
             title="Branch Revenue Comparison"
             subtitle="Annual revenue vs expenses (₹ millions)"
@@ -544,15 +679,8 @@ export default function FinancePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {mockBranchFinanceSummary.map((b, i) => {
+                  {filteredBranchData.map((b, i) => {
                     const growth = [8, 12, 6, -2, 4][i] ?? 0;
-                    const managers = [
-                      "Amit Patel",
-                      "Sunita Reddy",
-                      "Pooja Verma",
-                      "Suresh Babu",
-                      "Nisha Thomas",
-                    ];
                     return (
                       <tr
                         key={b.branchId}
@@ -563,7 +691,7 @@ export default function FinancePage() {
                           {b.branchName}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                          {managers[i]}
+                          {MANAGERS[i]}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-foreground font-mono">
                           ₹{(b.totalRevenue / 1000000).toFixed(2)}M
@@ -605,7 +733,7 @@ export default function FinancePage() {
         {/* ── Loans ── */}
         <TabsContent value="loans" className="space-y-4">
           {/* Repayment Analytics cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {[
               {
                 label: "On-time Repayment",
@@ -782,7 +910,7 @@ export default function FinancePage() {
               subtitle="Asset class allocation"
               data-ocid="finance.investment_donut"
             >
-              <div className="flex items-center gap-6 py-2">
+              <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
                 <ResponsiveContainer width={180} height={180}>
                   <PieChart>
                     <Pie
@@ -872,55 +1000,57 @@ export default function FinancePage() {
                 Investment Tracking
               </h3>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30 border-b border-border">
-                <tr>
-                  {[
-                    "Asset Class",
-                    "Principal (₹M)",
-                    "Current Value (₹M)",
-                    "Returns %",
-                    "Maturity Date",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {investmentTable.map((inv, i) => (
-                  <tr
-                    key={inv.asset}
-                    className="hover:bg-muted/20 transition-smooth"
-                    data-ocid={`finance.investment_table.item.${i + 1}`}
-                  >
-                    <td className="px-4 py-2.5 text-xs font-semibold text-foreground">
-                      {inv.asset}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-foreground font-mono">
-                      ₹{inv.principal}M
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-foreground font-mono">
-                      ₹{inv.current}M
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`text-xs font-bold ${inv.returns >= 15 ? "text-green-600" : inv.returns >= 8 ? "text-amber-600" : "text-foreground"}`}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
+                <thead className="bg-muted/30 border-b border-border">
+                  <tr>
+                    {[
+                      "Asset Class",
+                      "Principal (₹M)",
+                      "Current Value (₹M)",
+                      "Returns %",
+                      "Maturity Date",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground"
                       >
-                        +{inv.returns}%
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">
-                      {inv.maturity}
-                    </td>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {investmentTable.map((inv, i) => (
+                    <tr
+                      key={inv.asset}
+                      className="hover:bg-muted/20 transition-smooth"
+                      data-ocid={`finance.investment_table.item.${i + 1}`}
+                    >
+                      <td className="px-4 py-2.5 text-xs font-semibold text-foreground">
+                        {inv.asset}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-foreground font-mono">
+                        ₹{inv.principal}M
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-foreground font-mono">
+                        ₹{inv.current}M
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className={`text-xs font-bold ${inv.returns >= 15 ? "text-green-600" : inv.returns >= 8 ? "text-amber-600" : "text-foreground"}`}
+                        >
+                          +{inv.returns}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                        {inv.maturity}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

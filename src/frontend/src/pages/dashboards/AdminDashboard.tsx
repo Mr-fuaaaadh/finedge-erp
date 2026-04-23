@@ -1,8 +1,10 @@
+import { Button } from "@/components/ui/button";
 import {
   Activity,
   Award,
   CheckSquare,
   DollarSign,
+  Download,
   GitBranch,
   Medal,
   Target,
@@ -29,9 +31,9 @@ import { StatCard } from "../../components/shared/StatCard";
 import { StatusBadge } from "../../components/shared/StatusBadge";
 import { mockBranches } from "../../data/mockBranches";
 import { mockMonthlyFinance } from "../../data/mockFinance";
-import { mockLeads } from "../../data/mockLeads";
 import { mockBranchPerformance } from "../../data/mockPerformance";
 import { mockTasks } from "../../data/mockTasks";
+import { exportToCSV } from "../../utils/csvExport";
 
 const CHART_PRIMARY = "oklch(0.42 0.08 265)";
 const CHART_SECONDARY = "oklch(0.60 0.10 185)";
@@ -141,17 +143,42 @@ export default function AdminDashboard() {
       };
     });
 
+  function handleExportCSV() {
+    const exportData = kpis.map((k) => ({
+      Metric: k.title,
+      Value: k.value,
+      "Change (%)": k.change,
+    }));
+    exportToCSV(
+      exportData as Record<string, unknown>[],
+      "admin-dashboard-kpis",
+    );
+  }
+
   return (
     <div>
       <PageHeader
         title="Admin Dashboard"
         subtitle={`Enterprise overview — ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
         breadcrumbs={[{ label: "Home" }, { label: "Dashboard" }]}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-1.5 text-xs"
+            data-ocid="admin_dashboard.export_button"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Export Dashboard</span>
+            <span className="xs:hidden">Export</span>
+          </Button>
+        }
         data-ocid="admin_dashboard.header"
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -172,9 +199,9 @@ export default function AdminDashboard() {
       </div>
 
       {/* Revenue + Lead Source */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
-          className="lg:col-span-2"
+          className="md:col-span-2 lg:col-span-2"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
@@ -327,8 +354,8 @@ export default function AdminDashboard() {
           subtitle="Top 5 branches by revenue performance"
           data-ocid="admin_dashboard.branch_ranking"
         >
-          <div className="overflow-x-auto mt-1">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto mt-1 -mx-1">
+            <table className="w-full text-xs min-w-[480px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground">
@@ -337,7 +364,7 @@ export default function AdminDashboard() {
                   <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground">
                     Branch
                   </th>
-                  <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground">
+                  <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground hidden sm:table-cell">
                     Manager
                   </th>
                   <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
@@ -346,10 +373,10 @@ export default function AdminDashboard() {
                   <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
                     Growth
                   </th>
-                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
+                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground hidden md:table-cell">
                     Score
                   </th>
-                  <th className="text-center py-2.5 px-2 font-semibold text-muted-foreground">
+                  <th className="text-center py-2.5 px-2 font-semibold text-muted-foreground hidden sm:table-cell">
                     Status
                   </th>
                 </tr>
@@ -381,7 +408,7 @@ export default function AdminDashboard() {
                     <td className="py-3 px-2 font-semibold text-foreground">
                       {b.branchName}
                     </td>
-                    <td className="py-3 px-2 text-muted-foreground">
+                    <td className="py-3 px-2 text-muted-foreground hidden sm:table-cell">
                       {b.managerName}
                     </td>
                     <td className="py-3 px-2 text-right font-semibold text-foreground">
@@ -395,7 +422,7 @@ export default function AdminDashboard() {
                         {b.growth}%
                       </span>
                     </td>
-                    <td className="py-3 px-2 text-right">
+                    <td className="py-3 px-2 text-right hidden md:table-cell">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
                           <div
@@ -408,7 +435,7 @@ export default function AdminDashboard() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-2 text-center">
+                    <td className="py-3 px-2 text-center hidden sm:table-cell">
                       <StatusBadge status={b.status} />
                     </td>
                   </tr>
@@ -420,7 +447,7 @@ export default function AdminDashboard() {
       </motion.div>
 
       {/* Bottom row: 3 charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

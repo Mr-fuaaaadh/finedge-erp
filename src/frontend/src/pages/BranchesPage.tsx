@@ -13,6 +13,7 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  Download,
   Edit,
   Eye,
   MapPin,
@@ -26,7 +27,13 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
+import { BulkActionBar } from "../components/shared/BulkActionBar";
 import { EmptyState } from "../components/shared/EmptyState";
+import type {
+  FilterField,
+  FilterValues,
+} from "../components/shared/FilterPanel";
+import { FilterPanel } from "../components/shared/FilterPanel";
 import { StatCardSkeleton } from "../components/shared/LoadingSkeleton";
 import { ModalForm } from "../components/shared/ModalForm";
 import { PageHeader } from "../components/shared/PageHeader";
@@ -35,6 +42,7 @@ import { StatusBadge } from "../components/shared/StatusBadge";
 import { mockBranches } from "../data/mockBranches";
 import { mockUsers } from "../data/mockUsers";
 import type { Branch, BranchStatus, User } from "../types";
+import { exportToCSV } from "../utils/csvExport";
 
 const PAGE_SIZE = 6;
 
@@ -79,6 +87,47 @@ function PerformanceBar({ value }: { value: number }) {
 type ActiveTab = "directory" | "ranking";
 type SortField = "name" | "revenue" | "staffCount";
 
+const BRANCH_FILTER_FIELDS: FilterField[] = [
+  {
+    key: "name",
+    label: "Branch Name",
+    type: "text",
+    placeholder: "Search branch name…",
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { label: "Active", value: "Active" },
+      { label: "Inactive", value: "Inactive" },
+      { label: "Suspended", value: "Suspended" },
+    ],
+  },
+  {
+    key: "city",
+    label: "City",
+    type: "text",
+    placeholder: "Search city…",
+  },
+];
+
+function branchesToCSV(branches: Branch[]): Record<string, unknown>[] {
+  return branches.map((b) => ({
+    Name: b.name,
+    Code: b.code,
+    City: b.city,
+    State: b.state,
+    Status: b.status,
+    Manager: b.managerName,
+    "Staff Count": b.staffCount,
+    Revenue: b.revenue,
+    "Target Revenue": b.targetRevenue,
+    Performance: `${b.performance}%`,
+    Phone: b.phone,
+  }));
+}
+
 export default function BranchesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("directory");
   const [search, setSearch] = useState("");
@@ -89,6 +138,8 @@ export default function BranchesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editBranch, setEditBranch] = useState<Branch | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filterValues, setFilterValues] = useState<FilterValues>({});
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Form state
   const [form, setForm] = useState({
@@ -112,6 +163,8 @@ export default function BranchesPage() {
 
   const filtered = useMemo(() => {
     let list = [...mockBranches];
+
+    // Toolbar search
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -125,13 +178,34 @@ export default function BranchesPage() {
     if (statusFilter !== "all") {
       list = list.filter((b) => b.status === statusFilter);
     }
+
+    // FilterPanel values
+    const fpName = filterValues.name as string | undefined;
+    const fpStatus = filterValues.status as string | undefined;
+    const fpCity = filterValues.city as string | undefined;
+
+    if (fpName?.trim()) {
+      const q = fpName.toLowerCase();
+      list = list.filter(
+        (b) =>
+          b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q),
+      );
+    }
+    if (fpStatus) {
+      list = list.filter((b) => b.status === fpStatus);
+    }
+    if (fpCity?.trim()) {
+      const q = fpCity.toLowerCase();
+      list = list.filter((b) => b.city.toLowerCase().includes(q));
+    }
+
     list.sort((a, b) => {
       if (sortField === "revenue") return b.revenue - a.revenue;
       if (sortField === "staffCount") return b.staffCount - a.staffCount;
       return a.name.localeCompare(b.name);
     });
     return list;
-  }, [search, statusFilter, sortField]);
+  }, [search, statusFilter, sortField, filterValues]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -194,6 +268,48 @@ export default function BranchesPage() {
     setPage(1);
   }
 
+  function handleFilterChange(values: FilterValues) {
+    setFilterValues(values);
+    setPage(1);
+  }
+
+  function handleExportAll() {
+    exportToCSV(branchesToCSV(filtered), "branches_export");
+  }
+
+  function handleExportSelected() {
+    const selected = filtered.filter((b) => selectedIds.includes(b.id));
+    exportToCSV(branchesToCSV(selected), "branches_selected_export");
+  }
+
+  function handleBulkDelete() {
+    console.log("Delete branches:", selectedIds);
+    setSelectedIds([]);
+  }
+
+  function toggleSelection(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
+
+  function toggleAllPage() {
+    const pageIds = paginated.map((b) => b.id);
+    const allSelected = pageIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => [
+        ...prev,
+        ...pageIds.filter((id) => !prev.includes(id)),
+      ]);
+    }
+  }
+
+  const pageIds = paginated.map((b) => b.id);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <PageHeader
@@ -201,15 +317,27 @@ export default function BranchesPage() {
         subtitle={`${mockBranches.length} branches across India`}
         breadcrumbs={[{ label: "Home" }, { label: "Branches" }]}
         actions={
-          <Button
-            size="sm"
-            className="rounded-xl gap-1.5"
-            onClick={openAdd}
-            data-ocid="branches.add_branch.open_modal_button"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Branch
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1.5"
+              onClick={handleExportAll}
+              data-ocid="branches.export_csv.button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-xl gap-1.5"
+              onClick={openAdd}
+              data-ocid="branches.add_branch.open_modal_button"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline sm:inline">Add Branch</span>
+            </Button>
+          </div>
         }
       />
 
@@ -262,7 +390,7 @@ export default function BranchesPage() {
         <button
           type="button"
           onClick={() => setActiveTab("directory")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === "directory" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${activeTab === "directory" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           data-ocid="branches.directory.tab"
         >
           Directory
@@ -270,7 +398,7 @@ export default function BranchesPage() {
         <button
           type="button"
           onClick={() => setActiveTab("ranking")}
-          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${activeTab === "ranking" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${activeTab === "ranking" ? "bg-card shadow-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           data-ocid="branches.ranking.tab"
         >
           <Medal className="w-3.5 h-3.5 inline mr-1.5" />
@@ -285,12 +413,12 @@ export default function BranchesPage() {
           transition={{ duration: 0.25 }}
           className="bg-card rounded-2xl border border-border shadow-card"
         >
-          {/* Toolbar */}
+          {/* Filter row */}
           <div className="flex flex-wrap gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border">
-            <div className="relative flex-1 min-w-48">
+            <div className="relative flex-1 min-w-[160px] sm:min-w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search branches, managers, cities…"
+                placeholder="Search branches…"
                 value={search}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 h-8 rounded-xl text-sm"
@@ -299,7 +427,7 @@ export default function BranchesPage() {
             </div>
             <Select value={statusFilter} onValueChange={handleStatusChange}>
               <SelectTrigger
-                className="h-8 w-36 rounded-xl text-xs"
+                className="h-8 w-32 sm:w-36 rounded-xl text-xs"
                 data-ocid="branches.status.select"
               >
                 <SelectValue placeholder="Status" />
@@ -316,7 +444,7 @@ export default function BranchesPage() {
               onValueChange={(v) => setSortField(v as SortField)}
             >
               <SelectTrigger
-                className="h-8 w-36 rounded-xl text-xs"
+                className="h-8 w-32 sm:w-36 rounded-xl text-xs"
                 data-ocid="branches.sort.select"
               >
                 <SelectValue placeholder="Sort by" />
@@ -327,6 +455,21 @@ export default function BranchesPage() {
                 <SelectItem value="staffCount">Sort: Staff Count</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-xl gap-1.5 text-xs"
+              onClick={handleExportAll}
+              data-ocid="branches.filter_row.export_csv.button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+            <FilterPanel
+              filters={BRANCH_FILTER_FIELDS}
+              presetKey="branches"
+              onFilterChange={handleFilterChange}
+            />
           </div>
 
           {/* Table */}
@@ -339,9 +482,22 @@ export default function BranchesPage() {
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table
+                className="w-full text-left text-sm"
+                style={{ minWidth: "640px" }}
+              >
                 <thead>
                   <tr className="border-b border-border bg-muted/20">
+                    <th className="px-3 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all on page"
+                        checked={allPageSelected}
+                        onChange={toggleAllPage}
+                        className="rounded border-border accent-primary cursor-pointer"
+                        data-ocid="branches.select_all.checkbox"
+                      />
+                    </th>
                     {[
                       "Branch",
                       "Location",
@@ -362,88 +518,101 @@ export default function BranchesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((branch, idx) => (
-                    <motion.tr
-                      key={branch.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.04 }}
-                      className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors group"
-                      data-ocid={`branches.item.${idx + 1}`}
-                    >
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">
-                            {branch.name}
+                  {paginated.map((branch, idx) => {
+                    const isSelected = selectedIds.includes(branch.id);
+                    return (
+                      <motion.tr
+                        key={branch.id}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.04 }}
+                        className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors group ${isSelected ? "bg-primary/5" : ""}`}
+                        data-ocid={`branches.item.${idx + 1}`}
+                      >
+                        <td className="px-3 py-3 w-10">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${branch.name}`}
+                            checked={isSelected}
+                            onChange={() => toggleSelection(branch.id)}
+                            className="rounded border-border accent-primary cursor-pointer"
+                            data-ocid={`branches.checkbox.${idx + 1}`}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="text-xs font-semibold text-foreground">
+                              {branch.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-mono">
+                              {branch.code}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="w-3 h-3 shrink-0" />
+                            <span>
+                              {branch.city}, {branch.state}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-foreground">
+                            {branch.managerName}
                           </p>
-                          <p className="text-[10px] text-muted-foreground font-mono">
-                            {branch.code}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                          <span>
-                            {branch.city}, {branch.state}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="text-xs font-semibold text-foreground">
+                            {branch.staffCount}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs text-foreground">
-                          {branch.managerName}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-foreground">
-                          {branch.staffCount}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-xs font-semibold text-foreground">
-                          {formatRevenue(branch.revenue)}
-                        </span>
-                        <p className="text-[10px] text-muted-foreground">
-                          of {formatRevenue(branch.targetRevenue)}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <PerformanceBar value={branch.performance} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={branch.status} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 rounded-lg"
-                            data-ocid={`branches.edit_button.${idx + 1}`}
-                            onClick={() => openEdit(branch)}
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 rounded-lg"
-                            data-ocid={`branches.view_button.${idx + 1}`}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
-                            data-ocid={`branches.delete_button.${idx + 1}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="text-xs font-semibold text-foreground">
+                            {formatRevenue(branch.revenue)}
+                          </span>
+                          <p className="text-[10px] text-muted-foreground">
+                            of {formatRevenue(branch.targetRevenue)}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <PerformanceBar value={branch.performance} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusBadge status={branch.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 rounded-lg"
+                              data-ocid={`branches.edit_button.${idx + 1}`}
+                              onClick={() => openEdit(branch)}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 rounded-lg"
+                              data-ocid={`branches.view_button.${idx + 1}`}
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
+                              data-ocid={`branches.delete_button.${idx + 1}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -451,13 +620,13 @@ export default function BranchesPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border flex-wrap gap-2">
               <p className="text-xs text-muted-foreground">
                 Showing {(page - 1) * PAGE_SIZE + 1}–
                 {Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
                 {filtered.length}
               </p>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 <Button
                   size="icon"
                   variant="ghost"
@@ -527,7 +696,7 @@ export default function BranchesPage() {
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
-                  className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-muted/20 transition-colors"
                   data-ocid={`branches.ranking.item.${idx + 1}`}
                 >
                   {/* Rank badge */}
@@ -542,16 +711,18 @@ export default function BranchesPage() {
                       <span className="text-sm font-semibold text-foreground truncate">
                         {branch.name}
                       </span>
-                      <span className="text-[10px] font-mono text-muted-foreground">
+                      <span className="text-[10px] font-mono text-muted-foreground hidden sm:inline">
                         {branch.code}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                       <MapPin className="w-3 h-3" />
                       {branch.city}, {branch.state}
-                      <span className="mx-1">·</span>
-                      <Users className="w-3 h-3" />
-                      {branch.staffCount} staff
+                      <span className="mx-1 hidden sm:inline">·</span>
+                      <Users className="w-3 h-3 hidden sm:inline" />
+                      <span className="hidden sm:inline">
+                        {branch.staffCount} staff
+                      </span>
                     </div>
                   </div>
                   {/* Revenue */}
@@ -564,7 +735,7 @@ export default function BranchesPage() {
                     </p>
                   </div>
                   {/* Progress */}
-                  <div className="w-28 shrink-0 hidden md:block">
+                  <div className="w-24 sm:w-28 shrink-0 hidden md:block">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-muted-foreground">
                         Target
@@ -592,6 +763,14 @@ export default function BranchesPage() {
           </div>
         </motion.div>
       )}
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        count={selectedIds.length}
+        onExport={handleExportSelected}
+        onDelete={handleBulkDelete}
+        onDeselect={() => setSelectedIds([])}
+      />
 
       {/* Add Branch Modal */}
       <ModalForm
@@ -653,7 +832,7 @@ function BranchFormFields({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Branch Name *</Label>
           <Input
@@ -687,7 +866,7 @@ function BranchFormFields({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">City</Label>
           <Input
@@ -710,7 +889,7 @@ function BranchFormFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs font-medium">Phone</Label>
           <div className="relative">

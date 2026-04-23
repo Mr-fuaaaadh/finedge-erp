@@ -9,6 +9,7 @@ import {
   DollarSign,
   GitBranch,
   LayoutDashboard,
+  ShieldCheck,
   Target,
   TrendingUp,
   Users,
@@ -74,6 +75,12 @@ const navItems: NavItem[] = [
     path: "/performance",
     allowedRoles: ["admin", "branch_manager", "finance_manager"],
   },
+  {
+    label: "Audit Logs",
+    icon: ShieldCheck,
+    path: "/audit-logs",
+    allowedRoles: ["admin"],
+  },
 ];
 
 export function Sidebar() {
@@ -88,12 +95,11 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar — fixed, always visible on lg+ */}
+      {/* ─── Desktop sidebar: lg+ — fixed, always visible, toggleable width ─── */}
       <aside
         data-ocid="sidebar"
         className={cn(
           "fixed left-0 top-0 h-screen flex-col bg-card border-r border-border transition-all duration-300 z-30",
-          // Desktop: always shown, toggled width
           "hidden lg:flex",
           sidebarCollapsed ? "w-16" : "w-60",
         )}
@@ -107,13 +113,31 @@ export function Sidebar() {
         />
       </aside>
 
-      {/* Mobile sidebar — drawer overlay, slides in from left */}
+      {/* ─── Tablet sidebar: md to lg — always visible, icon-only (w-16) ─── */}
+      <aside
+        data-ocid="sidebar.tablet"
+        className={cn(
+          "fixed left-0 top-0 h-screen w-16 flex-col bg-card border-r border-border z-30",
+          "hidden md:flex lg:hidden",
+        )}
+      >
+        <SidebarContent
+          sidebarCollapsed={true}
+          toggleSidebar={() => {}}
+          visibleItems={visibleItems}
+          location={location}
+          isMobile={false}
+          isTablet={true}
+        />
+      </aside>
+
+      {/* ─── Mobile drawer: <md — overlay, slides in from left ─── */}
       <aside
         data-ocid="sidebar.mobile"
         className={cn(
-          "fixed left-0 top-0 h-screen w-64 flex-col bg-card border-r border-border transition-transform duration-300 z-50",
-          "flex lg:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
+          "fixed left-0 top-0 h-screen w-72 flex-col bg-card border-r border-border transition-transform duration-300 ease-in-out z-50",
+          "flex md:hidden",
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
         )}
       >
         <SidebarContent
@@ -135,6 +159,7 @@ interface SidebarContentProps {
   visibleItems: NavItem[];
   location: ReturnType<typeof useLocation>;
   isMobile: boolean;
+  isTablet?: boolean;
   onNavClick?: () => void;
 }
 
@@ -144,16 +169,24 @@ function SidebarContent({
   visibleItems,
   location,
   isMobile,
+  isTablet,
   onNavClick,
 }: SidebarContentProps) {
+  const showLabels = !sidebarCollapsed || isMobile;
+
   return (
     <>
       {/* Brand */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-border h-14 sm:h-16 shrink-0">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary shrink-0">
+      <div className="flex items-center gap-3 px-3 py-4 border-b border-border h-14 sm:h-16 shrink-0">
+        <div
+          className={cn(
+            "flex items-center justify-center w-8 h-8 rounded-lg bg-primary shrink-0",
+            !showLabels && "mx-auto",
+          )}
+        >
           <Building2 className="w-4 h-4 text-primary-foreground" />
         </div>
-        {(!sidebarCollapsed || isMobile) && (
+        {showLabels && (
           <div className="overflow-hidden flex-1 min-w-0">
             <p className="text-sm font-display font-bold text-foreground truncate">
               FinEdge ERP
@@ -190,25 +223,25 @@ function SidebarContent({
               to={item.path}
               onClick={onNavClick}
               data-ocid={`nav.${item.label.toLowerCase().replace(/[^a-z0-9]/g, "_")}.link`}
+              title={!showLabels ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 px-3 rounded-xl text-sm font-medium transition-smooth",
+                "flex items-center gap-3 rounded-xl text-sm font-medium transition-smooth",
                 "min-h-[44px] py-2",
+                showLabels ? "px-3" : "px-0 justify-center",
                 isActive
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {(!sidebarCollapsed || isMobile) && (
-                <span className="truncate">{item.label}</span>
-              )}
+              {showLabels && <span className="truncate">{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {/* Collapse toggle — desktop only */}
-      {!isMobile && (
+      {/* Collapse toggle — desktop only (not tablet, not mobile) */}
+      {!isMobile && !isTablet && (
         <div className="border-t border-border p-2">
           <button
             type="button"

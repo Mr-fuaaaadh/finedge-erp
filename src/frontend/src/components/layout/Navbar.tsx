@@ -10,7 +10,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Bell, ChevronDown, Menu, Moon, Search, Sun } from "lucide-react";
+import {
+  Bell,
+  Check,
+  ChevronDown,
+  Menu,
+  Moon,
+  Search,
+  Sun,
+} from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
@@ -72,6 +80,11 @@ export function Navbar() {
   const markAllRead = () =>
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
+  const markOneRead = (id: string) =>
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+
   const notifTypeColor: Record<Notification["type"], string> = {
     info: "bg-primary/10 text-primary",
     success:
@@ -93,7 +106,7 @@ export function Navbar() {
       data-ocid="navbar"
       className="h-14 sm:h-16 border-b border-border bg-card flex items-center px-3 sm:px-4 lg:px-6 gap-3 shrink-0 shadow-xs"
     >
-      {/* Hamburger — visible on mobile only */}
+      {/* Hamburger — mobile + tablet (<lg) */}
       <Button
         variant="ghost"
         size="icon"
@@ -105,7 +118,7 @@ export function Navbar() {
         <Menu className="w-5 h-5" />
       </Button>
 
-      {/* Search — hidden on xs, visible on sm+ */}
+      {/* Search bar — hidden on xs, visible on sm+ */}
       <div className="hidden sm:flex flex-1 items-center gap-2 max-w-xs">
         <button
           type="button"
@@ -162,15 +175,26 @@ export function Navbar() {
           <DropdownMenuContent
             data-ocid="navbar.notifications_dropdown"
             align="end"
-            className="w-[calc(100vw-2rem)] sm:w-80 max-h-[70vh] overflow-y-auto"
+            className="w-[calc(100vw-2rem)] sm:w-80 max-h-[75vh] overflow-y-auto"
           >
-            <DropdownMenuLabel className="flex items-center justify-between">
-              <span>Notifications</span>
+            <DropdownMenuLabel className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Notifications</span>
+                {unreadCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="text-[10px] px-1.5 py-0 h-4"
+                  >
+                    {unreadCount}
+                  </Badge>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <button
                   type="button"
                   onClick={markAllRead}
-                  className="text-xs text-primary hover:underline"
+                  data-ocid="navbar.notifications_mark_all_read"
+                  className="text-xs text-primary hover:underline font-medium"
                 >
                   Mark all read
                 </button>
@@ -182,11 +206,12 @@ export function Navbar() {
                 key={n.id}
                 data-ocid={`notification.${n.id}.item`}
                 className={cn(
-                  "flex flex-col gap-0.5 px-3 py-2.5 cursor-default",
+                  "flex flex-col gap-1 px-3 py-2.5 cursor-default focus:bg-muted/40",
                   !n.read && "bg-muted/30",
                 )}
+                onSelect={(e) => e.preventDefault()}
               >
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-2 w-full">
                   <span
                     className={cn(
                       "mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase shrink-0",
@@ -195,18 +220,47 @@ export function Navbar() {
                   >
                     {n.type}
                   </span>
-                  <span className="text-xs font-semibold text-foreground leading-tight">
+                  <span className="text-xs font-semibold text-foreground leading-tight flex-1 min-w-0">
                     {n.title}
                   </span>
-                  {!n.read && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shrink-0 mt-1" />
-                  )}
+                  <div className="flex items-center gap-1 shrink-0 ml-1">
+                    {!n.read && (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markOneRead(n.id);
+                          }}
+                          data-ocid={`notification.${n.id}.mark_read_button`}
+                          aria-label="Mark as read"
+                          className="flex items-center justify-center w-5 h-5 rounded hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-smooth"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground ml-10 leading-tight">
                   {n.message}
                 </p>
+                <p className="text-[10px] text-muted-foreground/60 ml-10">
+                  {new Date(n.createdAt).toLocaleDateString("en-IN", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
               </DropdownMenuItem>
             ))}
+            {notifications.every((n) => n.read) && (
+              <div className="py-6 text-center text-xs text-muted-foreground">
+                All caught up!
+              </div>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 

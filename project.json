@@ -1,24 +1,31 @@
 {
-  "overview": "Enterprise-grade financial services ERP + CRM platform with role-based dashboards for Admin, Branch Manager, Staff, and Finance Manager. Features 8 complete modules including Lead CRM with Kanban, Task Management, Attendance tracking, Finance analytics, and Performance dashboards — all with premium fintech UI.",
+  "overview": "FinEdge ERP is a production-grade enterprise ERP and CRM platform for financial services teams. It features role-based dashboards, lead management, branch and staff directories, task tracking, attendance monitoring, finance analytics, and performance leaderboards — all with a premium fintech design, dark mode, and full mobile responsiveness.",
   "features": [
-    "Role-based dashboards for 4 user types (Admin, Branch Manager, Staff, Finance Manager)",
-    "Lead Management CRM with drag-and-drop Kanban board and activity timeline",
-    "Branch and Staff management with search, filters, and analytics",
-    "Task Management with Kanban, list, and calendar views",
-    "Attendance tracking with calendar heatmap",
-    "Finance dashboard with P&L charts and branch revenue analytics",
-    "Performance dashboard with leaderboards and trend graphs",
-    "Dark mode, responsive design, loading skeletons, and empty states"
+    "Role-based dashboards for Admin, Branch Manager, Staff, and Finance Manager",
+    "Lead CRM with drag-and-drop Kanban board and conversion analytics",
+    "Branch and staff management with search, filters, and performance badges",
+    "Task management with Kanban, list, and calendar views",
+    "Attendance calendar heatmap with biometric sync and absentee analytics",
+    "Finance P&L charts, investment tracking, and loan portfolio",
+    "Performance leaderboards with top/low performer tracking",
+    "CSV export on all data tables",
+    "Bulk row selection and bulk actions across all data views",
+    "Advanced filters with saveable filter presets",
+    "Admin-only audit logs page with full action history",
+    "Real-time notifications dropdown in navbar",
+    "Full mobile responsiveness across all 15+ pages",
+    "Dark mode with OKLCH design system"
   ],
-  "category": "business",
+  "category": "enterprise",
   "tags": [
     "erp",
     "crm",
     "fintech",
     "dashboard",
     "enterprise",
-    "rbac",
-    "analytics"
+    "finance",
+    "mobile-responsive",
+    "saas"
   ],
-  "last_updated": "2026-04-22T15:25:48.353Z"
+  "last_updated": "2026-04-23T05:31:43.937Z"
 }
