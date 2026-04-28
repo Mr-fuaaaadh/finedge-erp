@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -15,10 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlignLeft,
   CalendarDays,
@@ -27,6 +25,7 @@ import {
   ChevronRight,
   Clock,
   Download,
+  Edit,
   Flag,
   LayoutGrid,
   ListTodo,
@@ -36,7 +35,7 @@ import {
   User,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { BulkActionBar } from "../components/shared/BulkActionBar";
 import { DataTable } from "../components/shared/DataTable";
@@ -46,7 +45,6 @@ import type {
   FilterField,
   FilterValues,
 } from "../components/shared/FilterPanel";
-import { ModalForm } from "../components/shared/ModalForm";
 import { PageHeader } from "../components/shared/PageHeader";
 import { PriorityBadge } from "../components/shared/PriorityBadge";
 import { StatCard } from "../components/shared/StatCard";
@@ -89,8 +87,6 @@ const COLUMN_STYLES: Record<
   },
 };
 
-const PRIORITY_OPTIONS: TaskPriority[] = ["High", "Medium", "Low"];
-
 const MONTH_NAMES = [
   "January",
   "February",
@@ -108,7 +104,7 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// ─── Filter fields config (for advanced FilterPanel) ─────────────────────────
+// ─── Filter fields config ─────────────────────────────────────────────────────
 
 const taskFilterFields: FilterField[] = [
   {
@@ -125,7 +121,6 @@ const taskFilterFields: FilterField[] = [
       { label: "Low", value: "Low" },
       { label: "Medium", value: "Medium" },
       { label: "High", value: "High" },
-      { label: "Urgent", value: "Urgent" },
     ],
   },
   {
@@ -152,9 +147,11 @@ const taskFilterFields: FilterField[] = [
 function TaskKanbanCard({
   task,
   onDragStart,
+  onNavigate,
 }: {
   task: Task;
   onDragStart: (e: React.DragEvent, task: Task) => void;
+  onNavigate: (taskId: string) => void;
 }) {
   const isOverdue =
     task.status !== "Done" && new Date(task.dueDate) < new Date();
@@ -166,11 +163,12 @@ function TaskKanbanCard({
       whileHover={{ scale: 1.01 }}
       draggable
       onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, task)}
-      className="bg-card border border-border rounded-xl p-3.5 cursor-grab active:cursor-grabbing shadow-card hover:shadow-elevated transition-smooth"
+      onClick={() => onNavigate(task.id)}
+      className="bg-card border border-border rounded-xl p-3.5 cursor-pointer shadow-card hover:shadow-elevated transition-smooth group"
       data-ocid={`tasks.kanban.card.${task.id}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-xs font-semibold text-foreground line-clamp-2 flex-1">
+        <p className="text-xs font-semibold text-foreground line-clamp-2 flex-1 group-hover:text-primary transition-colors">
           {task.title}
         </p>
         <PriorityBadge priority={task.priority} />
@@ -240,6 +238,7 @@ function TaskKanbanColumn({
   onDragOver,
   onDrop,
   onAddNew,
+  onNavigate,
 }: {
   status: TaskStatus;
   tasks: Task[];
@@ -247,6 +246,7 @@ function TaskKanbanColumn({
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, toCol: TaskStatus) => void;
   onAddNew: () => void;
+  onNavigate: (taskId: string) => void;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const styles = COLUMN_STYLES[status];
@@ -254,7 +254,7 @@ function TaskKanbanColumn({
   return (
     <div
       className={cn(
-        "flex flex-col min-w-[240px] flex-1 rounded-2xl border transition-smooth",
+        "flex flex-col min-w-[240px] w-[280px] flex-shrink-0 sm:flex-1 rounded-2xl border transition-smooth snap-start",
         isDragOver
           ? "border-primary/50 bg-primary/3"
           : "border-border bg-muted/20",
@@ -313,6 +313,7 @@ function TaskKanbanColumn({
                 key={task.id}
                 task={task}
                 onDragStart={onDragStart}
+                onNavigate={onNavigate}
               />
             ))
           )}
@@ -324,97 +325,128 @@ function TaskKanbanColumn({
 
 // ─── List view columns ────────────────────────────────────────────────────────
 
-const listColumns: Column<Task>[] = [
-  {
-    key: "title",
-    header: "Task",
-    sortable: true,
-    render: (row) => (
-      <div>
-        <p className="text-xs font-semibold text-foreground line-clamp-1">
-          {row.title}
-        </p>
-        <p className="text-[10px] text-muted-foreground line-clamp-1">
-          {row.description}
-        </p>
-      </div>
-    ),
-  },
-  {
-    key: "priority",
-    header: "Priority",
-    render: (row) => <PriorityBadge priority={row.priority} />,
-  },
-  {
-    key: "assignedTo",
-    header: "Assignee",
-    render: (row) => (
-      <span className="text-xs text-foreground">{row.assignedTo}</span>
-    ),
-  },
-  {
-    key: "branchId",
-    header: "Branch",
-    render: (row) => (
-      <Badge variant="outline" className="text-[10px] font-medium">
-        {row.branchId === "hq" ? "HQ" : row.branchId.toUpperCase()}
-      </Badge>
-    ),
-  },
-  {
-    key: "dueDate",
-    header: "Due Date",
-    sortable: true,
-    render: (row) => {
-      const overdue =
-        row.status !== "Done" && new Date(row.dueDate) < new Date();
-      return (
-        <span
-          className={cn(
-            "text-xs",
-            overdue ? "text-red-500 font-semibold" : "text-muted-foreground",
-          )}
+function makeListColumns(onNavigate: (taskId: string) => void): Column<Task>[] {
+  return [
+    {
+      key: "title",
+      header: "Task",
+      sortable: true,
+      render: (row) => (
+        <button
+          type="button"
+          onClick={() => onNavigate(row.id)}
+          className="text-left group"
+          data-ocid={`tasks.list.row.${row.id}.link`}
         >
-          {new Date(row.dueDate).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-          })}
-        </span>
-      );
+          <p className="text-xs font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+            {row.title}
+          </p>
+          <p className="text-[10px] text-muted-foreground line-clamp-1">
+            {row.description}
+          </p>
+        </button>
+      ),
     },
-  },
-  {
-    key: "progress",
-    header: "Progress",
-    align: "right",
-    render: (row) => (
-      <div className="flex items-center justify-end gap-2">
-        <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary"
-            style={{ width: `${row.progress}%` }}
-          />
+    {
+      key: "priority",
+      header: "Priority",
+      render: (row) => <PriorityBadge priority={row.priority} />,
+    },
+    {
+      key: "assignedTo",
+      header: "Assignee",
+      render: (row) => (
+        <span className="text-xs text-foreground">{row.assignedTo}</span>
+      ),
+    },
+    {
+      key: "branchId",
+      header: "Branch",
+      render: (row) => (
+        <Badge variant="outline" className="text-[10px] font-medium">
+          {row.branchId === "hq" ? "HQ" : row.branchId.toUpperCase()}
+        </Badge>
+      ),
+    },
+    {
+      key: "dueDate",
+      header: "Due Date",
+      sortable: true,
+      render: (row) => {
+        const overdue =
+          row.status !== "Done" && new Date(row.dueDate) < new Date();
+        return (
+          <span
+            className={cn(
+              "text-xs",
+              overdue ? "text-red-500 font-semibold" : "text-muted-foreground",
+            )}
+          >
+            {new Date(row.dueDate).toLocaleDateString("en-IN", {
+              day: "numeric",
+              month: "short",
+            })}
+          </span>
+        );
+      },
+    },
+    {
+      key: "progress",
+      header: "Progress",
+      align: "right",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-2">
+          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${row.progress}%` }}
+            />
+          </div>
+          <span className="text-xs font-semibold text-foreground w-8">
+            {row.progress}%
+          </span>
         </div>
-        <span className="text-xs font-semibold text-foreground w-8">
-          {row.progress}%
-        </span>
-      </div>
-    ),
-  },
-  {
-    key: "status",
-    header: "Status",
-    render: (row) => <StatusBadge status={row.status} />,
-  },
-];
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <StatusBadge status={row.status} />,
+    },
+    {
+      key: "id",
+      header: "",
+      align: "right",
+      render: (row) => (
+        <Link
+          to="/tasks/$taskId/edit"
+          params={{ taskId: row.id }}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-muted/60"
+          data-ocid={`tasks.list.row.${row.id}.edit_button`}
+        >
+          <Edit className="w-3 h-3" />
+          Edit
+        </Link>
+      ),
+    },
+  ];
+}
 
 // ─── Calendar View ────────────────────────────────────────────────────────────
 
-function CalendarView({ tasks }: { tasks: Task[] }) {
+function CalendarView({
+  tasks,
+  onNavigate,
+}: {
+  tasks: Task[];
+  onNavigate: (taskId: string) => void;
+}) {
   const today = new Date();
   const [viewDate, setViewDate] = useState(
     new Date(today.getFullYear(), today.getMonth(), 1),
   );
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -442,16 +474,23 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
     return map;
   }, [tasks, year, month]);
 
-  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+  const selectedDayTasks = selectedDay ? (tasksByDay[selectedDay] ?? []) : [];
+
+  const prevMonth = () => {
+    setViewDate(new Date(year, month - 1, 1));
+    setSelectedDay(null);
+  };
+  const nextMonth = () => {
+    setViewDate(new Date(year, month + 1, 1));
+    setSelectedDay(null);
+  };
 
   return (
-    /* overflow-x-auto so calendar doesn't overflow on small screens */
-    <div className="overflow-x-auto">
+    <div className="space-y-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="bg-card rounded-2xl border border-border shadow-card overflow-hidden min-w-[320px]"
+        className="bg-card rounded-2xl border border-border shadow-card overflow-hidden"
         data-ocid="tasks.calendar"
       >
         {/* Calendar header */}
@@ -486,7 +525,8 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
               key={d}
               className="text-center text-[10px] font-semibold text-muted-foreground py-2"
             >
-              {d}
+              <span className="hidden sm:inline">{d}</span>
+              <span className="sm:hidden">{d[0]}</span>
             </div>
           ))}
         </div>
@@ -500,22 +540,38 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
               today.getMonth() === month &&
               today.getFullYear() === year;
             const dayTasks = day !== null ? (tasksByDay[day] ?? []) : [];
+            const isSelected = day !== null && selectedDay === day;
 
             return (
               <div
                 key={`cell-${idx}-${day ?? "empty"}`}
+                role={day !== null ? "button" : undefined}
+                tabIndex={day !== null ? 0 : undefined}
                 className={cn(
-                  "min-h-[72px] p-1.5 border-r border-b last:border-r-0 relative",
-                  day === null ? "bg-muted/10" : "bg-card",
+                  "min-h-[60px] sm:min-h-[80px] p-1 sm:p-1.5 border-r border-b last:border-r-0 relative cursor-pointer",
+                  day === null
+                    ? "bg-muted/10 cursor-default"
+                    : "bg-card hover:bg-muted/20 transition-colors",
+                  isSelected
+                    ? "bg-primary/5 ring-1 ring-inset ring-primary/30"
+                    : "",
                   idx % 7 === 6 ? "border-r-0" : "",
                 )}
+                onClick={() =>
+                  day !== null &&
+                  setSelectedDay(day === selectedDay ? null : day)
+                }
+                onKeyDown={(e) => {
+                  if ((e.key === "Enter" || e.key === " ") && day !== null)
+                    setSelectedDay(day === selectedDay ? null : day);
+                }}
                 data-ocid={day ? `tasks.calendar.day.${day}` : undefined}
               >
                 {day !== null && (
                   <>
                     <span
                       className={cn(
-                        "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1",
+                        "text-[10px] sm:text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full mb-0.5 sm:mb-1",
                         isToday
                           ? "bg-primary text-primary-foreground"
                           : "text-foreground",
@@ -524,71 +580,74 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
                       {day}
                     </span>
 
-                    <div className="space-y-0.5">
-                      {dayTasks.length > 0 && (
-                        <Popover>
+                    <div className="hidden sm:block space-y-0.5">
+                      {dayTasks.slice(0, 2).map((t) => (
+                        <Popover key={t.id}>
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="w-full text-left"
-                              data-ocid={`tasks.calendar.day.${day}.popover`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={cn(
+                                "w-full text-left text-[9px] px-1.5 py-0.5 rounded truncate font-medium",
+                                t.priority === "High"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                  : t.priority === "Medium"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                    : "bg-primary/10 text-primary",
+                              )}
                             >
-                              <div className="flex flex-col gap-0.5">
-                                {dayTasks.slice(0, 2).map((t) => (
-                                  <div
-                                    key={t.id}
-                                    className={cn(
-                                      "text-[9px] px-1.5 py-0.5 rounded truncate font-medium",
-                                      t.priority === "High"
-                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                        : t.priority === "Medium"
-                                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                                          : "bg-primary/10 text-primary",
-                                    )}
-                                  >
-                                    {t.title}
-                                  </div>
-                                ))}
-                                {dayTasks.length > 2 && (
-                                  <span className="text-[9px] text-muted-foreground px-1">
-                                    +{dayTasks.length - 2} more
-                                  </span>
-                                )}
-                              </div>
+                              {t.title}
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
                             className="w-72 p-3"
                             data-ocid={`tasks.calendar.day.${day}.popover_content`}
                           >
-                            <p className="text-xs font-semibold mb-2 text-foreground">
-                              {MONTH_NAMES[month]} {day} — {dayTasks.length}{" "}
-                              task
-                              {dayTasks.length > 1 ? "s" : ""}
-                            </p>
-                            <div className="space-y-2">
-                              {dayTasks.map((t) => (
-                                <div
-                                  key={t.id}
-                                  className="flex items-start gap-2 p-2 rounded-xl bg-muted/30 border border-border"
-                                >
-                                  <PriorityBadge priority={t.priority} />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-foreground line-clamp-2">
-                                      {t.title}
-                                    </p>
-                                    <p className="text-[10px] text-muted-foreground truncate">
-                                      {t.assignedTo}
-                                    </p>
-                                  </div>
-                                  <StatusBadge status={t.status} />
-                                </div>
-                              ))}
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <p className="text-xs font-semibold text-foreground">
+                                {t.title}
+                              </p>
+                              <StatusBadge status={t.status} />
                             </div>
+                            <p className="text-[10px] text-muted-foreground mb-2">
+                              {t.assignedTo}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-xs h-7"
+                              onClick={() => onNavigate(t.id)}
+                            >
+                              View Task
+                            </Button>
                           </PopoverContent>
                         </Popover>
+                      ))}
+                      {dayTasks.length > 2 && (
+                        <span className="text-[9px] text-muted-foreground px-1">
+                          +{dayTasks.length - 2} more
+                        </span>
                       )}
                     </div>
+
+                    {/* Mobile: dot indicator */}
+                    {dayTasks.length > 0 && (
+                      <div className="sm:hidden flex gap-0.5 mt-0.5 justify-center">
+                        {dayTasks.slice(0, 3).map((t) => (
+                          <span
+                            key={t.id}
+                            className={cn(
+                              "w-1 h-1 rounded-full",
+                              t.priority === "High"
+                                ? "bg-red-500"
+                                : t.priority === "Medium"
+                                  ? "bg-amber-500"
+                                  : "bg-primary",
+                            )}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -596,152 +655,49 @@ function CalendarView({ tasks }: { tasks: Task[] }) {
           })}
         </div>
       </motion.div>
-    </div>
-  );
-}
 
-// ─── Create Task Modal content ────────────────────────────────────────────────
-
-function CreateTaskForm() {
-  const [progress, setProgress] = useState([0]);
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label className="text-xs">Task Title *</Label>
-        <Input
-          placeholder="Enter task title"
-          className="rounded-xl text-sm"
-          data-ocid="add_task.title.input"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs">Description</Label>
-        <Textarea
-          placeholder="Describe what needs to be done…"
-          rows={3}
-          className="rounded-xl text-sm resize-none"
-          data-ocid="add_task.description.textarea"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Priority</Label>
-          <Select>
-            <SelectTrigger
-              className="rounded-xl text-sm"
-              data-ocid="add_task.priority.select"
-            >
-              <SelectValue placeholder="Select priority" />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITY_OPTIONS.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
+      {/* Mobile selected day task list */}
+      {selectedDay !== null && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card rounded-2xl border border-border shadow-card p-4"
+          data-ocid="tasks.calendar.selected_day_panel"
+        >
+          <h3 className="text-sm font-semibold text-foreground mb-3">
+            {MONTH_NAMES[month]} {selectedDay} — {selectedDayTasks.length} task
+            {selectedDayTasks.length !== 1 ? "s" : ""}
+          </h3>
+          {selectedDayTasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No tasks due on this date
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {selectedDayTasks.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onNavigate(t.id)}
+                  className="w-full text-left flex items-start gap-3 p-2.5 rounded-xl bg-muted/30 border border-border hover:bg-muted/60 transition-colors group"
+                  data-ocid={`tasks.calendar.selected.${t.id}`}
+                >
+                  <PriorityBadge priority={t.priority} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                      {t.title}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t.assignedTo}
+                    </p>
+                  </div>
+                  <StatusBadge status={t.status} />
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Status</Label>
-          <Select>
-            <SelectTrigger
-              className="rounded-xl text-sm"
-              data-ocid="add_task.status.select"
-            >
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Assigned To</Label>
-          <Input
-            placeholder="Staff member name"
-            className="rounded-xl text-sm"
-            data-ocid="add_task.assignee.input"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Branch</Label>
-          <Select>
-            <SelectTrigger
-              className="rounded-xl text-sm"
-              data-ocid="add_task.branch.select"
-            >
-              <SelectValue placeholder="Select branch" />
-            </SelectTrigger>
-            <SelectContent>
-              {[
-                "HQ",
-                "b1 — Mumbai Central",
-                "b2 — Delhi NCR",
-                "b3 — Bengaluru East",
-                "b4 — Hyderabad West",
-              ].map((b) => (
-                <SelectItem key={b} value={b}>
-                  {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Due Date</Label>
-          <Input
-            type="date"
-            className="rounded-xl text-sm"
-            data-ocid="add_task.due_date.input"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Parent Task (optional)</Label>
-          <Select>
-            <SelectTrigger
-              className="rounded-xl text-sm"
-              data-ocid="add_task.parent.select"
-            >
-              <SelectValue placeholder="None" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None</SelectItem>
-              {mockTasks.slice(0, 6).map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.title.slice(0, 35)}…
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-xs">Initial Progress — {progress[0]}%</Label>
-        <Slider
-          value={progress}
-          onValueChange={setProgress}
-          min={0}
-          max={100}
-          step={5}
-          className="w-full"
-          data-ocid="add_task.progress.slider"
-        />
-      </div>
+            </div>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -770,7 +726,6 @@ function TaskInlineFilters({
       className="flex flex-wrap items-center gap-2 mb-4 bg-card border border-border rounded-2xl shadow-card px-3 sm:px-4 py-2.5"
       data-ocid="tasks.inline_filters"
     >
-      {/* Search */}
       <div className="relative flex-1 min-w-[140px] max-w-xs">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
         <Input
@@ -782,7 +737,6 @@ function TaskInlineFilters({
         />
       </div>
 
-      {/* Priority */}
       <Select value={priority} onValueChange={onPriority}>
         <SelectTrigger
           className="h-8 text-xs w-[120px] rounded-xl"
@@ -795,11 +749,9 @@ function TaskInlineFilters({
           <SelectItem value="Low">Low</SelectItem>
           <SelectItem value="Medium">Medium</SelectItem>
           <SelectItem value="High">High</SelectItem>
-          <SelectItem value="Urgent">Urgent</SelectItem>
         </SelectContent>
       </Select>
 
-      {/* Status */}
       <Select value={status} onValueChange={onStatus}>
         <SelectTrigger
           className="h-8 text-xs w-[130px] rounded-xl"
@@ -816,7 +768,6 @@ function TaskInlineFilters({
         </SelectContent>
       </Select>
 
-      {/* Export CSV */}
       <Button
         variant="outline"
         size="sm"
@@ -835,14 +786,12 @@ function TaskInlineFilters({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TasksPage() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [dragState, setDragState] = useState<DragState>(null);
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Inline filter state
   const [inlineSearch, setInlineSearch] = useState("");
   const [inlinePriority, setInlinePriority] = useState("all");
   const [inlineStatus, setInlineStatus] = useState("all");
@@ -860,10 +809,8 @@ export default function TasksPage() {
     [tasks],
   );
 
-  // Apply both advanced FilterPanel filters and inline filters
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      // Advanced panel filters
       const advSearch = (filterValues.search as string | undefined) ?? "";
       const advPriority = (filterValues.priority as string | undefined) ?? "";
       const advStatus = (filterValues.status as string | undefined) ?? "";
@@ -883,7 +830,6 @@ export default function TasksPage() {
       )
         return false;
 
-      // Inline filters
       if (
         inlineSearch &&
         !t.title.toLowerCase().includes(inlineSearch.toLowerCase()) &&
@@ -903,7 +849,6 @@ export default function TasksPage() {
     });
   }, [tasks, filterValues, inlineSearch, inlinePriority, inlineStatus]);
 
-  // Drag handlers
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     setDragState({ taskId: task.id, fromCol: task.status });
     e.dataTransfer.effectAllowed = "move";
@@ -923,14 +868,6 @@ export default function TasksPage() {
       ),
     );
     setDragState(null);
-  };
-
-  const handleAdd = () => {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      setShowAddModal(false);
-    }, 1200);
   };
 
   const handleExportCSV = () => {
@@ -970,6 +907,18 @@ export default function TasksPage() {
     setSelectedIds([]);
   };
 
+  const handleNavigateToTask = useCallback(
+    (taskId: string) => {
+      navigate({ to: "/tasks/$taskId", params: { taskId } });
+    },
+    [navigate],
+  );
+
+  const listColumns = useMemo(
+    () => makeListColumns(handleNavigateToTask),
+    [handleNavigateToTask],
+  );
+
   return (
     <div>
       <PageHeader
@@ -996,8 +945,8 @@ export default function TasksPage() {
             <Button
               size="sm"
               className="rounded-xl gap-1.5"
-              onClick={() => setShowAddModal(true)}
-              data-ocid="tasks.add_task.open_modal_button"
+              onClick={() => navigate({ to: "/tasks/new" })}
+              data-ocid="tasks.add_task.primary_button"
             >
               <Plus className="w-3.5 h-3.5" />
               Create Task
@@ -1050,7 +999,7 @@ export default function TasksPage() {
 
       {/* Views */}
       <Tabs defaultValue="kanban" data-ocid="tasks.view_tabs">
-        <TabsList className="mb-4 rounded-xl overflow-x-auto flex-wrap">
+        <TabsList className="mb-4 rounded-xl">
           <TabsTrigger
             value="kanban"
             data-ocid="tasks.kanban.tab"
@@ -1077,7 +1026,6 @@ export default function TasksPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Inline Filter Row (all views) ── */}
         <TaskInlineFilters
           search={inlineSearch}
           priority={inlinePriority}
@@ -1088,12 +1036,13 @@ export default function TasksPage() {
           onExport={handleExportCSV}
         />
 
-        {/* Kanban view */}
+        {/* Kanban view — horizontally scrollable with snap on mobile */}
         <TabsContent value="kanban">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex gap-3 overflow-x-auto pb-3"
+            className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory"
+            style={{ scrollbarWidth: "thin" }}
           >
             {STATUSES.map((status) => (
               <TaskKanbanColumn
@@ -1103,7 +1052,8 @@ export default function TasksPage() {
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-                onAddNew={() => setShowAddModal(true)}
+                onAddNew={() => navigate({ to: "/tasks/new" })}
+                onNavigate={handleNavigateToTask}
               />
             ))}
           </motion.div>
@@ -1116,8 +1066,7 @@ export default function TasksPage() {
             animate={{ opacity: 1 }}
             className="bg-card rounded-2xl border border-border shadow-card p-4 sm:p-5"
           >
-            {/* overflow-x-auto so table is scrollable on mobile */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               <DataTable
                 data={filteredTasks}
                 columns={listColumns}
@@ -1134,32 +1083,21 @@ export default function TasksPage() {
         {/* Calendar view */}
         <TabsContent value="calendar">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <CalendarView tasks={filteredTasks} />
+            <CalendarView
+              tasks={filteredTasks}
+              onNavigate={handleNavigateToTask}
+            />
           </motion.div>
         </TabsContent>
       </Tabs>
 
-      {/* Bulk Action Bar */}
+      {/* Bulk Action Bar — sticky bottom on mobile */}
       <BulkActionBar
         count={selectedIds.length}
         onExport={handleBulkExport}
         onDelete={handleBulkDelete}
         onDeselect={() => setSelectedIds([])}
       />
-
-      {/* Create Task Modal */}
-      <ModalForm
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        title="Create New Task"
-        description="Assign and configure a task for your team."
-        onSubmit={handleAdd}
-        submitLabel="Create Task"
-        loading={saving}
-        data-ocid="add_task"
-      >
-        <CreateTaskForm />
-      </ModalForm>
     </div>
   );
 }

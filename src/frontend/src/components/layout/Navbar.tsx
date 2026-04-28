@@ -14,11 +14,16 @@ import {
   Bell,
   Check,
   ChevronDown,
+  DollarSign,
   Menu,
   Moon,
   Search,
+  ShieldCheck,
   Sun,
+  User,
+  Users,
 } from "lucide-react";
+import type React from "react";
 import { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
@@ -69,7 +74,7 @@ const mockNotifications: Notification[] = [
 ];
 
 export function Navbar() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { toggleMobileSidebar } = useUIStore();
   const [notifications, setNotifications] =
@@ -93,6 +98,39 @@ export function Navbar() {
       "bg-amber-100/70 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     error: "bg-destructive/10 text-destructive",
   };
+
+  const roleConfig: Record<
+    string,
+    { label: string; Icon: React.ElementType; className: string }
+  > = {
+    admin: {
+      label: "Admin",
+      Icon: ShieldCheck,
+      className:
+        "bg-rose-100/80 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800",
+    },
+    branch_manager: {
+      label: "Branch Manager",
+      Icon: Users,
+      className:
+        "bg-blue-100/80 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800",
+    },
+    finance_manager: {
+      label: "Finance Manager",
+      Icon: DollarSign,
+      className:
+        "bg-violet-100/80 text-violet-700 border-violet-200 dark:bg-violet-900/30 dark:text-violet-400 dark:border-violet-800",
+    },
+    staff: {
+      label: "Staff",
+      Icon: User,
+      className:
+        "bg-emerald-100/80 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800",
+    },
+  };
+
+  const currentRole = roleConfig[role] ?? roleConfig.staff;
+  const RoleIcon = currentRole.Icon;
 
   const initials = user.name
     .split(" ")
@@ -142,6 +180,21 @@ export function Navbar() {
       </Button>
 
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+        {/* Role Badge */}
+        <div
+          data-ocid="navbar.role_badge"
+          className={cn(
+            "flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs font-semibold transition-smooth shrink-0",
+            currentRole.className,
+          )}
+          title={currentRole.label}
+        >
+          <RoleIcon className="w-3.5 h-3.5 shrink-0" />
+          <span className="hidden md:inline whitespace-nowrap">
+            {currentRole.label}
+          </span>
+        </div>
+
         {/* Theme toggle */}
         <Button
           variant="ghost"

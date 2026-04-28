@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   Award,
@@ -7,6 +8,7 @@ import {
   Download,
   GitBranch,
   Medal,
+  Plus,
   Target,
   TrendingUp,
   Users,
@@ -67,7 +69,42 @@ const attendanceData = [
   { name: "Absent", value: 4, color: "oklch(0.63 0.24 17)" },
 ];
 
+const recentActivity = [
+  {
+    icon: Award,
+    text: "Delhi NCR exceeded monthly target",
+    time: "2h ago",
+    color: "text-green-600",
+  },
+  {
+    icon: Target,
+    text: "Crescent Exports lead assigned to Kavita",
+    time: "3h ago",
+    color: "text-primary",
+  },
+  {
+    icon: CheckSquare,
+    text: "Q1 Investor Presentation under review",
+    time: "5h ago",
+    color: "text-secondary",
+  },
+  {
+    icon: Users,
+    text: "3 new staff onboarded — Mumbai Central",
+    time: "1d ago",
+    color: "text-accent-foreground",
+  },
+  {
+    icon: Activity,
+    text: "Kochi Maritime compliance flag raised",
+    time: "2d ago",
+    color: "text-destructive",
+  },
+];
+
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+
   const activeBranches = mockBranches.filter(
     (b) => b.status === "Active",
   ).length;
@@ -155,6 +192,27 @@ export default function AdminDashboard() {
     );
   }
 
+  const quickActions = [
+    {
+      label: "New Lead",
+      icon: Plus,
+      href: "/leads/new",
+      ocid: "admin_dashboard.quick_action.new_lead",
+    },
+    {
+      label: "New Staff",
+      icon: Users,
+      href: "/staff/new",
+      ocid: "admin_dashboard.quick_action.new_staff",
+    },
+    {
+      label: "New Branch",
+      icon: GitBranch,
+      href: "/branches/new",
+      ocid: "admin_dashboard.quick_action.new_branch",
+    },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -162,23 +220,37 @@ export default function AdminDashboard() {
         subtitle={`Enterprise overview — ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
         breadcrumbs={[{ label: "Home" }, { label: "Dashboard" }]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="gap-1.5 text-xs"
-            data-ocid="admin_dashboard.export_button"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Export Dashboard</span>
-            <span className="xs:hidden">Export</span>
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {quickActions.map((action) => (
+              <Button
+                key={action.label}
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ to: action.href })}
+                className="gap-1.5 text-xs min-h-[36px]"
+                data-ocid={action.ocid}
+              >
+                <action.icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{action.label}</span>
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="gap-1.5 text-xs min-h-[36px]"
+              data-ocid="admin_dashboard.export_button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </div>
         }
         data-ocid="admin_dashboard.header"
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -198,10 +270,26 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* Quick Action Pills — mobile-only row */}
+      <div className="flex gap-2 mb-4 sm:hidden flex-wrap">
+        {quickActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => navigate({ to: action.href })}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold min-h-[44px] border border-primary/20"
+            data-ocid={`${action.ocid}_mobile`}
+          >
+            <action.icon className="w-3.5 h-3.5" />
+            {action.label}
+          </button>
+        ))}
+      </div>
+
       {/* Revenue + Lead Source */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
-          className="md:col-span-2 lg:col-span-2"
+          className="md:col-span-1 lg:col-span-2"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
@@ -606,44 +694,12 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Recent Activity section */}
             <div className="mt-4 pt-3 border-t border-border">
               <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
                 Recent Activity
               </p>
               <div className="space-y-1.5">
-                {[
-                  {
-                    icon: Award,
-                    text: "Delhi NCR exceeded monthly target",
-                    time: "2h ago",
-                    color: "text-green-600",
-                  },
-                  {
-                    icon: Target,
-                    text: "Crescent Exports lead assigned to Kavita",
-                    time: "3h ago",
-                    color: "text-primary",
-                  },
-                  {
-                    icon: CheckSquare,
-                    text: "Q1 Investor Presentation under review",
-                    time: "5h ago",
-                    color: "text-secondary",
-                  },
-                  {
-                    icon: Users,
-                    text: "3 new staff onboarded — Mumbai Central",
-                    time: "1d ago",
-                    color: "text-accent-foreground",
-                  },
-                  {
-                    icon: Activity,
-                    text: "Kochi Maritime compliance flag raised",
-                    time: "2d ago",
-                    color: "text-destructive",
-                  },
-                ].map((item) => (
+                {recentActivity.map((item) => (
                   <div key={item.text} className="flex items-start gap-2 py-1">
                     <item.icon
                       className={`w-3 h-3 mt-0.5 shrink-0 ${item.color}`}
@@ -661,6 +717,63 @@ export default function AdminDashboard() {
           </ChartCard>
         </motion.div>
       </div>
+
+      {/* Performance Trend — full width on mobile, 2/3 on desktop */}
+      <motion.div
+        className="mt-4 sm:mt-6"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.76 }}
+      >
+        <ChartCard
+          title="Performance Overview"
+          subtitle="KPI summary across all branches"
+          data-ocid="admin_dashboard.performance_trend"
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                label: "Target Achievement",
+                value: "91%",
+                icon: TrendingUp,
+                color: "text-green-600",
+              },
+              {
+                label: "Avg Lead Quality",
+                value: "B+",
+                icon: Target,
+                color: "text-primary",
+              },
+              {
+                label: "Staff Efficiency",
+                value: "84%",
+                icon: Users,
+                color: "text-secondary",
+              },
+              {
+                label: "Branch Health",
+                value: "Good",
+                icon: GitBranch,
+                color: "text-amber-600",
+              },
+            ].map((item, i) => (
+              <div
+                key={item.label}
+                className="flex flex-col items-center p-3 rounded-xl bg-muted/30 border border-border/50 text-center"
+                data-ocid={`admin_dashboard.performance_overview.item.${i + 1}`}
+              >
+                <item.icon className={`w-5 h-5 mb-2 ${item.color}`} />
+                <p className="text-lg sm:text-xl font-display font-bold text-foreground">
+                  {item.value}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                  {item.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+      </motion.div>
     </div>
   );
 }

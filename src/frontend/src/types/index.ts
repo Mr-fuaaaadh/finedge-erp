@@ -33,6 +33,16 @@ export type AttendanceStatus =
 export type BranchStatus = "Active" | "Inactive" | "Suspended";
 export type UserStatus = "Active" | "Inactive" | "On Leave";
 
+export type NotificationType = "info" | "success" | "warning" | "error";
+
+export type ThemeMode = "light" | "dark" | "system";
+
+export type AttendanceRequestType =
+  | "Leave"
+  | "Work From Home"
+  | "Half Day"
+  | "Regularization";
+
 // ─── Core Entities ────────────────────────────────────────────────────────────
 
 export interface User {
@@ -197,7 +207,7 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: "info" | "success" | "warning" | "error";
+  type: NotificationType;
   read: boolean;
   createdAt: string;
 }
@@ -256,8 +266,76 @@ export interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: "info" | "warning" | "error" | "success";
+  type: NotificationType;
   timestamp: Date;
   read: boolean;
   link: string | undefined;
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+export interface SettingsProfile {
+  name: string;
+  email: string;
+  phone: string;
+  designation: string;
+  bio: string;
+  avatar: string;
+}
+
+export interface SettingsNotifications {
+  emailLeads: boolean;
+  emailTasks: boolean;
+  emailAttendance: boolean;
+  emailReports: boolean;
+  pushLeads: boolean;
+  pushTasks: boolean;
+  pushAttendance: boolean;
+}
+
+export interface SettingsSecurity {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  twoFactorEnabled: boolean;
+}
+
+export interface SettingsState {
+  theme: ThemeMode;
+  language: string;
+  timezone: string;
+  profile: SettingsProfile;
+  notifications: SettingsNotifications;
+  security: SettingsSecurity;
+}
+
+// ─── Attendance Request ───────────────────────────────────────────────────────
+
+export interface AttendanceRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  type: AttendanceRequestType;
+  startDate: string;
+  endDate: string;
+  reason: string;
+  status: "Pending" | "Approved" | "Rejected";
+  createdAt: string;
+  reviewedBy?: string;
+  reviewNote?: string;
+}
+
+// ─── Form field option helper ─────────────────────────────────────────────────
+
+export interface SelectOption<T extends string = string> {
+  value: T;
+  label: string;
 }

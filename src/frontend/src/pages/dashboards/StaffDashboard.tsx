@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Award,
   CalendarDays,
@@ -7,6 +8,7 @@ import {
   Clock,
   Download,
   Phone,
+  Plus,
   Star,
   Target,
   Timer,
@@ -39,6 +41,7 @@ function formatDueDate(dateStr: string) {
 
 export default function StaffDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const myLeads = mockLeads.filter((l) => l.assignedToId === user.id);
   const myTasks = mockTasks.filter((t) => t.assignedToId === user.id);
@@ -147,6 +150,21 @@ export default function StaffDashboard() {
     );
   }
 
+  const quickActions = [
+    {
+      label: "New Lead",
+      icon: Plus,
+      href: "/leads/new",
+      ocid: "staff_dashboard.quick_action.new_lead",
+    },
+    {
+      label: "New Task",
+      icon: Zap,
+      href: "/tasks/new",
+      ocid: "staff_dashboard.quick_action.new_task",
+    },
+  ];
+
   return (
     <div>
       {/* Welcome Banner */}
@@ -196,23 +214,37 @@ export default function StaffDashboard() {
         subtitle="Personal performance and task overview"
         breadcrumbs={[{ label: "Dashboard" }, { label: user.name }]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="gap-1.5 text-xs"
-            data-ocid="staff_dashboard.export_button"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Export My Data</span>
-            <span className="xs:hidden">Export</span>
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {quickActions.map((action) => (
+              <Button
+                key={action.label}
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ to: action.href })}
+                className="gap-1.5 text-xs min-h-[36px]"
+                data-ocid={action.ocid}
+              >
+                <action.icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{action.label}</span>
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="gap-1.5 text-xs min-h-[36px]"
+              data-ocid="staff_dashboard.export_button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </div>
         }
         data-ocid="staff_dashboard.header"
       />
 
-      {/* KPI Cards — 2 col on mobile, 4 on md+ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* KPI Cards — 1 col mobile, 2 col sm, 3 col lg */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -232,11 +264,27 @@ export default function StaffDashboard() {
         ))}
       </div>
 
+      {/* Quick Action Pills — mobile-only */}
+      <div className="flex gap-2 mb-4 sm:hidden flex-wrap">
+        {quickActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => navigate({ to: action.href })}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold min-h-[44px] border border-primary/20"
+            data-ocid={`${action.ocid}_mobile`}
+          >
+            <action.icon className="w-3.5 h-3.5" />
+            {action.label}
+          </button>
+        ))}
+      </div>
+
       {/* Tasks + Leads — stack on mobile, 2 cols on md+ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.38 }}
         >
           <ChartCard
@@ -244,7 +292,8 @@ export default function StaffDashboard() {
             subtitle="Active and upcoming"
             data-ocid="staff_dashboard.tasks_list"
           >
-            <div className="space-y-2 mt-1">
+            {/* Cards on mobile */}
+            <div className="space-y-2 mt-1 lg:hidden">
               {myTasks
                 .filter((t) => t.status !== "Done")
                 .slice(0, 5)
@@ -299,12 +348,72 @@ export default function StaffDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Table on desktop */}
+            <div className="hidden lg:block mt-1 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
+                      Task
+                    </th>
+                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
+                      Priority
+                    </th>
+                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="text-right py-2 px-1 font-semibold text-muted-foreground">
+                      Due
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myTasks
+                    .filter((t) => t.status !== "Done")
+                    .slice(0, 6)
+                    .map((task, i) => (
+                      <tr
+                        key={task.id}
+                        className="border-b border-border/40 hover:bg-muted/30 transition-smooth"
+                        data-ocid={`staff_dashboard.tasks_list.item.${i + 1}`}
+                      >
+                        <td className="py-2.5 px-1 font-semibold text-foreground max-w-[160px] truncate">
+                          {task.title}
+                        </td>
+                        <td className="py-2.5 px-1">
+                          <PriorityBadge priority={task.priority} />
+                        </td>
+                        <td className="py-2.5 px-1">
+                          <StatusBadge status={task.status} />
+                        </td>
+                        <td
+                          className={`py-2.5 px-1 text-right font-medium text-[11px] ${getDueColor(task.dueDate)}`}
+                        >
+                          {formatDueDate(task.dueDate)}
+                        </td>
+                      </tr>
+                    ))}
+                  {myTasks.filter((t) => t.status !== "Done").length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="py-6 text-center text-xs text-muted-foreground"
+                        data-ocid="staff_dashboard.tasks_list.empty_state"
+                      >
+                        No pending tasks
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </ChartCard>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, x: 12 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.44 }}
         >
           <ChartCard
@@ -312,58 +421,50 @@ export default function StaffDashboard() {
             subtitle="5 most recently updated"
             data-ocid="staff_dashboard.leads_table"
           >
-            <div className="mt-1 overflow-x-auto">
-              <table className="w-full text-xs min-w-[280px]">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
-                      Name
-                    </th>
-                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground hidden sm:table-cell">
-                      Company
-                    </th>
-                    <th className="text-left py-2 px-1 font-semibold text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="text-right py-2 px-1 font-semibold text-muted-foreground">
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentLeads.map((lead, i) => (
-                    <tr
-                      key={lead.id}
-                      className="border-b border-border/40 hover:bg-muted/30 transition-smooth"
-                      data-ocid={`staff_dashboard.leads_table.item.${i + 1}`}
-                    >
-                      <td className="py-2.5 px-1 font-semibold text-foreground">
-                        {lead.name}
-                      </td>
-                      <td className="py-2.5 px-1 text-muted-foreground truncate max-w-[80px] hidden sm:table-cell">
-                        {lead.company}
-                      </td>
-                      <td className="py-2.5 px-1">
-                        <StatusBadge status={lead.status} />
-                      </td>
-                      <td className="py-2.5 px-1 text-right font-semibold text-foreground">
-                        ₹{(lead.value / 1000).toFixed(0)}K
-                      </td>
-                    </tr>
-                  ))}
-                  {recentLeads.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="py-6 text-center text-xs text-muted-foreground"
-                        data-ocid="staff_dashboard.leads_table.empty_state"
-                      >
-                        No leads assigned yet
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            {/* Scrollable list with status badges */}
+            <div className="mt-1 space-y-2 max-h-[280px] overflow-y-auto pr-1">
+              {recentLeads.map((lead, i) => (
+                <div
+                  key={lead.id}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-muted/20 hover:bg-muted/40 transition-smooth border border-border/40"
+                  data-ocid={`staff_dashboard.leads_table.item.${i + 1}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {lead.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {lead.company}
+                    </p>
+                  </div>
+                  <StatusBadge status={lead.status} />
+                  <span className="text-xs font-semibold text-foreground shrink-0">
+                    ₹{(lead.value / 1000).toFixed(0)}K
+                  </span>
+                </div>
+              ))}
+              {recentLeads.length === 0 && (
+                <div
+                  className="flex flex-col items-center py-8 text-center"
+                  data-ocid="staff_dashboard.leads_table.empty_state"
+                >
+                  <Target className="w-8 h-8 text-muted-foreground mb-2" />
+                  <p className="text-sm font-semibold text-foreground">
+                    No leads yet
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    No leads assigned to you
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/leads/new" })}
+                    className="mt-3 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-semibold min-h-[36px] border border-primary/20"
+                    data-ocid="staff_dashboard.leads_table.empty_state.add_lead_button"
+                  >
+                    + Add Lead
+                  </button>
+                </div>
+              )}
             </div>
           </ChartCard>
         </motion.div>
@@ -513,7 +614,6 @@ export default function StaffDashboard() {
               ))}
             </div>
 
-            {/* Overall score */}
             <div className="mt-4 pt-3 border-t border-border flex items-center gap-3 p-3 rounded-xl bg-primary/5 border-primary/15">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                 <Timer className="w-5 h-5 text-primary" />

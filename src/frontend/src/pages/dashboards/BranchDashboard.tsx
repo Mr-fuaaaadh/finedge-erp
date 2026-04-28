@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useNavigate } from "@tanstack/react-router";
 import {
   CalendarDays,
   CheckSquare,
   Clock,
   DollarSign,
   Download,
+  Plus,
   Target,
   Users,
 } from "lucide-react";
@@ -43,6 +45,7 @@ const CHART_GRID = "oklch(0.91 0.01 0)";
 
 export default function BranchDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const branchId = user.branchId;
   const branchStaff = mockUsers.filter(
     (u) => u.branchId === branchId && u.role === "staff",
@@ -66,7 +69,6 @@ export default function BranchDashboard() {
     (l) => l.status === "New" || l.status === "In Progress",
   ).length;
 
-  // Monthly performance (area chart)
   const monthlyPerfData = branchFinance.slice(-8).map((f) => ({
     month: f.month,
     revenue: f.revenue,
@@ -74,7 +76,6 @@ export default function BranchDashboard() {
     target: Math.round(f.revenue * 1.08),
   }));
 
-  // Funnel data
   const funnelTotal = branchLeads.length || 1;
   const funnelData = [
     {
@@ -142,6 +143,21 @@ export default function BranchDashboard() {
     },
   ];
 
+  const quickActions = [
+    {
+      label: "New Task",
+      icon: Plus,
+      href: "/tasks/new",
+      ocid: "branch_dashboard.quick_action.new_task",
+    },
+    {
+      label: "Request Leave",
+      icon: CalendarDays,
+      href: "/attendance/request",
+      ocid: "branch_dashboard.quick_action.request_leave",
+    },
+  ];
+
   function handleExportCSV() {
     const exportData = kpis.map((k) => ({
       Metric: k.title,
@@ -162,23 +178,37 @@ export default function BranchDashboard() {
         subtitle={`Branch performance overview — ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
         breadcrumbs={[{ label: "Dashboard" }, { label: user.branchName }]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            className="gap-1.5 text-xs"
-            data-ocid="branch_dashboard.export_button"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Export CSV</span>
-            <span className="xs:hidden">Export</span>
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {quickActions.map((action) => (
+              <Button
+                key={action.label}
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ to: action.href })}
+                className="gap-1.5 text-xs min-h-[36px]"
+                data-ocid={action.ocid}
+              >
+                <action.icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{action.label}</span>
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCSV}
+              className="gap-1.5 text-xs min-h-[36px]"
+              data-ocid="branch_dashboard.export_button"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+          </div>
         }
         data-ocid="branch_dashboard.header"
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -198,11 +228,27 @@ export default function BranchDashboard() {
         ))}
       </div>
 
+      {/* Quick Action Pills — mobile-only row */}
+      <div className="flex gap-2 mb-4 sm:hidden flex-wrap">
+        {quickActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => navigate({ to: action.href })}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold min-h-[44px] border border-primary/20"
+            data-ocid={`${action.ocid}_mobile`}
+          >
+            <action.icon className="w-3.5 h-3.5" />
+            {action.label}
+          </button>
+        ))}
+      </div>
+
       {/* Staff Targets + Lead Conversion Funnel */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.38 }}
         >
           <ChartCard
@@ -248,8 +294,8 @@ export default function BranchDashboard() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, x: 12 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.44 }}
         >
           <ChartCard
@@ -314,7 +360,6 @@ export default function BranchDashboard() {
                 )}
               </div>
             )}
-            {/* Conversion stats */}
             <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border">
               {[
                 { label: "Total Leads", value: branchLeads.length },
@@ -342,9 +387,9 @@ export default function BranchDashboard() {
       </div>
 
       {/* Monthly Performance + Upcoming Tasks */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <motion.div
-          className="md:col-span-2 lg:col-span-2"
+          className="md:col-span-1 lg:col-span-2"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
@@ -488,6 +533,87 @@ export default function BranchDashboard() {
           </ChartCard>
         </motion.div>
       </div>
+
+      {/* Staff Performance Table */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.62 }}
+      >
+        <ChartCard
+          title="Staff Performance"
+          subtitle="All branch staff performance scores"
+          data-ocid="branch_dashboard.staff_performance_table"
+        >
+          <div className="overflow-x-auto mt-1 -mx-1">
+            <table className="w-full text-xs min-w-[420px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground sticky left-0 bg-card z-10">
+                    Staff
+                  </th>
+                  <th className="text-left py-2.5 px-2 font-semibold text-muted-foreground hidden sm:table-cell">
+                    Role
+                  </th>
+                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground">
+                    Score
+                  </th>
+                  <th className="text-right py-2.5 px-2 font-semibold text-muted-foreground hidden md:table-cell">
+                    Progress
+                  </th>
+                  <th className="text-center py-2.5 px-2 font-semibold text-muted-foreground">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {branchStaff.slice(0, 8).map((staff, i) => (
+                  <tr
+                    key={staff.id}
+                    className="border-b border-border/50 hover:bg-muted/30 transition-smooth"
+                    data-ocid={`branch_dashboard.staff_performance_table.item.${i + 1}`}
+                  >
+                    <td className="py-2.5 px-2 sticky left-0 bg-card">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={staff.avatar}
+                          alt={staff.name}
+                          className="w-6 h-6 rounded-full border border-border shrink-0"
+                        />
+                        <span className="font-semibold text-foreground truncate max-w-[100px]">
+                          {staff.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-muted-foreground hidden sm:table-cell capitalize">
+                      {staff.role}
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-bold text-primary">
+                      {staff.performanceScore}
+                    </td>
+                    <td className="py-2.5 px-2 hidden md:table-cell">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all duration-500"
+                            style={{ width: `${staff.performanceScore}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-8">
+                          {staff.performanceScore}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-2 text-center">
+                      <StatusBadge status={staff.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ChartCard>
+      </motion.div>
     </div>
   );
 }

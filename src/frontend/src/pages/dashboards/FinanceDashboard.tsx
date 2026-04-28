@@ -43,6 +43,12 @@ const CHART_PURPLE = "oklch(0.58 0.12 260)";
 const CHART_RED = "oklch(0.63 0.24 17)";
 const CHART_GRID = "oklch(0.91 0.01 0)";
 
+function formatCompact(value: number): string {
+  if (value >= 1_000_000) return `₹${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `₹${(value / 1_000).toFixed(0)}K`;
+  return `₹${value}`;
+}
+
 const investmentPortfolio = [
   { name: "Government Bonds", value: 35, color: CHART_PRIMARY },
   { name: "Corporate Bonds", value: 22, color: CHART_SECONDARY },
@@ -80,28 +86,28 @@ export default function FinanceDashboard() {
   const kpis = [
     {
       title: "Total Revenue (YTD)",
-      value: `₹${(totalRevenue / 1000000).toFixed(1)}M`,
+      value: formatCompact(totalRevenue),
       change: 14,
       icon: TrendingUp,
       iconColor: "text-green-600",
     },
     {
       title: "Total Expenses",
-      value: `₹${(totalExpenses / 1000000).toFixed(1)}M`,
+      value: formatCompact(totalExpenses),
       change: -3,
       icon: TrendingDown,
       iconColor: "text-destructive",
     },
     {
       title: `Net Profit (${profitMargin}% margin)`,
-      value: `₹${(netProfit / 1000000).toFixed(1)}M`,
+      value: formatCompact(netProfit),
       change: 18,
       icon: DollarSign,
       iconColor: "text-primary",
     },
     {
       title: "Loan Portfolio",
-      value: `₹${(loanPortfolio / 1000000).toFixed(1)}M`,
+      value: formatCompact(loanPortfolio),
       change: 9,
       icon: Wallet,
       iconColor: "text-secondary",
@@ -119,9 +125,9 @@ export default function FinanceDashboard() {
       ...branchTable.map((b) => ({
         Category: "Branch",
         Metric: b.branchName,
-        Revenue: `₹${(b.totalRevenue / 1000000).toFixed(2)}M`,
-        Expenses: `₹${(b.totalExpenses / 1000000).toFixed(2)}M`,
-        Profit: `₹${(b.totalProfit / 1000000).toFixed(2)}M`,
+        Revenue: formatCompact(b.totalRevenue),
+        Expenses: formatCompact(b.totalExpenses),
+        Profit: formatCompact(b.totalProfit),
         "Margin (%)": b.profitMargin,
       })),
     ];
@@ -139,19 +145,18 @@ export default function FinanceDashboard() {
             variant="outline"
             size="sm"
             onClick={handleExportCSV}
-            className="gap-1.5 text-xs"
+            className="gap-1.5 text-xs min-h-[36px]"
             data-ocid="finance_dashboard.export_button"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Export CSV</span>
-            <span className="xs:hidden">Export</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </Button>
         }
         data-ocid="finance_dashboard.header"
       />
 
-      {/* KPI Cards — 2 col on mobile, 4 on md+ */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {kpis.map((kpi, i) => (
           <motion.div
             key={kpi.title}
@@ -171,7 +176,7 @@ export default function FinanceDashboard() {
         ))}
       </div>
 
-      {/* P&L Area Chart */}
+      {/* P&L Area Chart — full width */}
       <motion.div
         className="mb-4 sm:mb-6"
         initial={{ opacity: 0, y: 12 }}
@@ -184,7 +189,7 @@ export default function FinanceDashboard() {
           periods={["2024", "YTD", "Q4"]}
           data-ocid="finance_dashboard.pl_chart"
         >
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={300}>
             <AreaChart
               data={plData}
               margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
@@ -226,11 +231,11 @@ export default function FinanceDashboard() {
                 tick={{ fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(v: number) => `₹${(v / 1000000).toFixed(1)}M`}
+                tickFormatter={(v: number) => formatCompact(v)}
               />
               <Tooltip
                 formatter={(v: number, name: string) => [
-                  `₹${(v / 1000000).toFixed(2)}M`,
+                  formatCompact(v),
                   name,
                 ]}
                 contentStyle={{ borderRadius: "8px", fontSize: 11 }}
@@ -265,7 +270,7 @@ export default function FinanceDashboard() {
         </ChartCard>
       </motion.div>
 
-      {/* Branch Revenue Table */}
+      {/* Branch Revenue Table — horizontal scroll on mobile */}
       <motion.div
         className="mb-4 sm:mb-6"
         initial={{ opacity: 0, y: 12 }}
@@ -318,13 +323,13 @@ export default function FinanceDashboard() {
                       {branch.branchName}
                     </td>
                     <td className="py-3 px-2 text-right font-semibold text-foreground">
-                      ₹{(branch.totalRevenue / 1000000).toFixed(2)}M
+                      {formatCompact(branch.totalRevenue)}
                     </td>
                     <td className="py-3 px-2 text-right text-muted-foreground hidden sm:table-cell">
-                      ₹{(branch.totalExpenses / 1000000).toFixed(2)}M
+                      {formatCompact(branch.totalExpenses)}
                     </td>
                     <td className="py-3 px-2 text-right font-semibold text-green-600 dark:text-green-400">
-                      ₹{(branch.totalProfit / 1000000).toFixed(2)}M
+                      {formatCompact(branch.totalProfit)}
                     </td>
                     <td className="py-3 px-2 text-right hidden md:table-cell">
                       <span
@@ -357,13 +362,13 @@ export default function FinanceDashboard() {
                     Total
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-foreground">
-                    ₹{(totalRevenue / 1000000).toFixed(2)}M
+                    {formatCompact(totalRevenue)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-muted-foreground hidden sm:table-cell">
-                    ₹{(totalExpenses / 1000000).toFixed(2)}M
+                    {formatCompact(totalExpenses)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-green-600 dark:text-green-400">
-                    ₹{(netProfit / 1000000).toFixed(2)}M
+                    {formatCompact(netProfit)}
                   </td>
                   <td className="py-2.5 px-2 text-right font-bold text-primary hidden md:table-cell">
                     {profitMargin}%
@@ -378,7 +383,7 @@ export default function FinanceDashboard() {
         </ChartCard>
       </motion.div>
 
-      {/* Loan Disbursement + Investment Portfolio + Repayment Analytics */}
+      {/* Loan Disbursement + Investment Portfolio + Repayment Analytics — stack on mobile */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -410,13 +415,10 @@ export default function FinanceDashboard() {
                   tick={{ fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v: number) => `₹${(v / 1000000).toFixed(0)}M`}
+                  tickFormatter={(v: number) => formatCompact(v)}
                 />
                 <Tooltip
-                  formatter={(v: number) => [
-                    `₹${(v / 1000000).toFixed(2)}M`,
-                    "Disbursed",
-                  ]}
+                  formatter={(v: number) => [formatCompact(v), "Disbursed"]}
                   contentStyle={{ fontSize: 11 }}
                 />
                 <Bar
@@ -523,11 +525,11 @@ export default function FinanceDashboard() {
                   tick={{ fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v: number) => `₹${(v / 1000000).toFixed(0)}M`}
+                  tickFormatter={(v: number) => formatCompact(v)}
                 />
                 <Tooltip
                   formatter={(v: number, name: string) => [
-                    `₹${(v / 1000000).toFixed(2)}M`,
+                    formatCompact(v),
                     name,
                   ]}
                   contentStyle={{ fontSize: 11 }}
@@ -557,7 +559,7 @@ export default function FinanceDashboard() {
             <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border">
               <div className="text-center p-2 rounded-xl bg-muted/40">
                 <p className="text-sm font-display font-bold text-foreground">
-                  ₹{(loanPortfolio / 1000000).toFixed(1)}M
+                  {formatCompact(loanPortfolio)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   Total Disbursed
@@ -565,7 +567,7 @@ export default function FinanceDashboard() {
               </div>
               <div className="text-center p-2 rounded-xl bg-primary/5">
                 <p className="text-sm font-display font-bold text-green-700 dark:text-green-400">
-                  ₹{((loanPortfolio * 0.82) / 1000000).toFixed(1)}M
+                  {formatCompact(loanPortfolio * 0.82)}
                 </p>
                 <p className="text-[10px] text-muted-foreground">
                   Total Repaid

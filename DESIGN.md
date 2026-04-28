@@ -96,3 +96,48 @@
 ## Signature Detail
 
 **Precision surface layering:** Dashboard uses three distinct background levels (background → muted/20 → card) creating visual hierarchy without visual noise. Each card elevation is earned through functional hierarchy, not decoration.
+
+## Responsive Breakpoints
+
+| Device | Breakpoint | Sidebar | Layout | Behavior |
+|--------|-----------|---------|--------|----------|
+| Mobile | <640px | Hidden, drawer overlay | Single column, stacked | Hamburger menu, full-width cards |
+| Tablet | 640px–1024px | Icon-only (w-16) | 2-column grid | Minimal nav, touch-friendly |
+| Desktop | 1024px–1440px | Toggle state (w-16/w-60) | 3-4 column grid | Full sidebar, normal spacing |
+| Large | >1440px | Fixed expanded | Adaptive grid | Maximum information density |
+
+## Enterprise Features (Mobile-Optimized)
+
+| Feature | Mobile | Tablet | Desktop | Notes |
+|---------|--------|--------|---------|-------|
+| Data tables | Horizontal scroll, condensed | Multi-column, filters below | Full width, inline filters | Tables never stack; provide scroll |
+| Kanban boards | Vertical scroll | 2 columns stacked | Full width, 3–4 columns | Cards remain responsive |
+| Modals/Forms | Full-screen or 90vw | 80vw centered | 70vw centered | Touch padding on buttons |
+| Filters | Stacked, collapsible | Sticky header row | Horizontal, persistent | Save/load presets at all sizes |
+| Charts | 100% width, auto-scale | 100% width, auto-scale | 100% width, optimal aspect | Maintain aspect ratio |
+
+## Form Pages
+
+All forms are dedicated pages (not modals) at routes like `/leads/new`, `/staff/new`, `/branches/new`. Each form page includes:
+- Full-width input fields with proper touch targets (44px minimum)
+- Clear section headings using `font-display`
+- Primary action button at bottom (sticky on mobile)
+- Secondary cancel link
+- Optional inline help text under labels
+- Full-screen or near-full-screen on mobile, constrained to 600px on desktop
+
+## Notification & Audit Pattern
+
+| Element | Style | Usage |
+|---------|-------|-------|
+| Notification badge | `bg-accent text-accent-foreground rounded-full` | Unread count on bell icon |
+| Dropdown menu | `shadow-elevated glass` | Recent alerts, mark-as-read |
+| Audit log row | `border-b hover:bg-muted/50 transition-smooth` | System action history, timestamped |
+| Bulk action bar | `sticky bottom-0 bg-card shadow-elevated` | Multi-select actions, contextual |
+
+## Dark Mode Adjustments
+
+- Slightly higher contrast in dark for chart colors (e.g., chart-1 → `0.75 0.12 265` instead of `0.42 0.08 265`)
+- Muted backgrounds shift from `0.92 0.02 0` (light) to `0.2 0.02 0` (dark) for clear distinction
+- Border opacity reduced in dark mode (`0.22 0.01 0` vs `0.91 0.01 0`) for softer separators
+- Shadows remain consistent across light/dark via RGBA values in tailwind.config.js

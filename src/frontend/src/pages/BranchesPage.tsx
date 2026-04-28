@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -9,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Building2,
   ChevronLeft,
@@ -35,13 +35,11 @@ import type {
 } from "../components/shared/FilterPanel";
 import { FilterPanel } from "../components/shared/FilterPanel";
 import { StatCardSkeleton } from "../components/shared/LoadingSkeleton";
-import { ModalForm } from "../components/shared/ModalForm";
 import { PageHeader } from "../components/shared/PageHeader";
 import { StatCard } from "../components/shared/StatCard";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { mockBranches } from "../data/mockBranches";
-import { mockUsers } from "../data/mockUsers";
-import type { Branch, BranchStatus, User } from "../types";
+import type { Branch } from "../types";
 import { exportToCSV } from "../utils/csvExport";
 
 const PAGE_SIZE = 6;
@@ -129,42 +127,19 @@ function branchesToCSV(branches: Branch[]): Record<string, unknown>[] {
 }
 
 export default function BranchesPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ActiveTab>("directory");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>("name");
   const [page, setPage] = useState(1);
   const [loading] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editBranch, setEditBranch] = useState<Branch | null>(null);
-  const [saving, setSaving] = useState(false);
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  // Form state
-  const [form, setForm] = useState({
-    name: "",
-    code: "",
-    city: "",
-    state: "",
-    address: "",
-    phone: "",
-    managerId: "",
-    status: "Active" as BranchStatus,
-  });
-
-  const managers = useMemo(
-    () =>
-      mockUsers.filter(
-        (u) => u.role === "branch_manager" || u.role === "admin",
-      ),
-    [],
-  );
 
   const filtered = useMemo(() => {
     let list = [...mockBranches];
 
-    // Toolbar search
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -179,7 +154,6 @@ export default function BranchesPage() {
       list = list.filter((b) => b.status === statusFilter);
     }
 
-    // FilterPanel values
     const fpName = filterValues.name as string | undefined;
     const fpStatus = filterValues.status as string | undefined;
     const fpCity = filterValues.city as string | undefined;
@@ -191,9 +165,7 @@ export default function BranchesPage() {
           b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q),
       );
     }
-    if (fpStatus) {
-      list = list.filter((b) => b.status === fpStatus);
-    }
+    if (fpStatus) list = list.filter((b) => b.status === fpStatus);
     if (fpCity?.trim()) {
       const q = fpCity.toLowerCase();
       list = list.filter((b) => b.city.toLowerCase().includes(q));
@@ -221,78 +193,34 @@ export default function BranchesPage() {
     return { active, totalStaff, totalRev };
   }, []);
 
-  function openAdd() {
-    setForm({
-      name: "",
-      code: "",
-      city: "",
-      state: "",
-      address: "",
-      phone: "",
-      managerId: "",
-      status: "Active",
-    });
-    setShowAddModal(true);
-  }
-
-  function openEdit(b: Branch) {
-    setForm({
-      name: b.name,
-      code: b.code,
-      city: b.city,
-      state: b.state,
-      address: b.address,
-      phone: b.phone,
-      managerId: b.managerId,
-      status: b.status,
-    });
-    setEditBranch(b);
-  }
-
-  function handleSave() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      setShowAddModal(false);
-      setEditBranch(null);
-    }, 1100);
-  }
-
   function handleSearchChange(v: string) {
     setSearch(v);
     setPage(1);
   }
-
   function handleStatusChange(v: string) {
     setStatusFilter(v);
     setPage(1);
   }
-
   function handleFilterChange(values: FilterValues) {
     setFilterValues(values);
     setPage(1);
   }
-
   function handleExportAll() {
     exportToCSV(branchesToCSV(filtered), "branches_export");
   }
-
   function handleExportSelected() {
     const selected = filtered.filter((b) => selectedIds.includes(b.id));
     exportToCSV(branchesToCSV(selected), "branches_selected_export");
   }
-
   function handleBulkDelete() {
     console.log("Delete branches:", selectedIds);
     setSelectedIds([]);
   }
-
   function toggleSelection(id: string) {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
-
   function toggleAllPage() {
     const pageIds = paginated.map((b) => b.id);
     const allSelected = pageIds.every((id) => selectedIds.includes(id));
@@ -331,8 +259,8 @@ export default function BranchesPage() {
             <Button
               size="sm"
               className="rounded-xl gap-1.5"
-              onClick={openAdd}
-              data-ocid="branches.add_branch.open_modal_button"
+              onClick={() => navigate({ to: "/branches/new" })}
+              data-ocid="branches.add_branch.button"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden xs:inline sm:inline">Add Branch</span>
@@ -375,7 +303,7 @@ export default function BranchesPage() {
             />
             <StatCard
               title="Monthly Revenue"
-              value="$2.4M"
+              value={formatRevenue(stats.totalRev)}
               icon={TrendingUp}
               iconColor="text-accent-foreground"
               change={8}
@@ -588,7 +516,11 @@ export default function BranchesPage() {
                               variant="ghost"
                               className="h-7 w-7 rounded-lg"
                               data-ocid={`branches.edit_button.${idx + 1}`}
-                              onClick={() => openEdit(branch)}
+                              onClick={() =>
+                                navigate({
+                                  to: `/branches/${branch.id}/edit`,
+                                })
+                              }
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </Button>
@@ -597,6 +529,9 @@ export default function BranchesPage() {
                               variant="ghost"
                               className="h-7 w-7 rounded-lg"
                               data-ocid={`branches.view_button.${idx + 1}`}
+                              onClick={() =>
+                                navigate({ to: `/branches/${branch.id}` })
+                              }
                             >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
@@ -605,6 +540,10 @@ export default function BranchesPage() {
                               variant="ghost"
                               className="h-7 w-7 rounded-lg text-destructive hover:text-destructive"
                               data-ocid={`branches.delete_button.${idx + 1}`}
+                              onClick={() => {
+                                setSelectedIds([branch.id]);
+                                handleBulkDelete();
+                              }}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -696,8 +635,9 @@ export default function BranchesPage() {
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}
-                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-muted/20 transition-colors"
+                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 hover:bg-muted/20 transition-colors cursor-pointer"
                   data-ocid={`branches.ranking.item.${idx + 1}`}
+                  onClick={() => navigate({ to: `/branches/${branch.id}` })}
                 >
                   {/* Rank badge */}
                   <div
@@ -771,180 +711,6 @@ export default function BranchesPage() {
         onDelete={handleBulkDelete}
         onDeselect={() => setSelectedIds([])}
       />
-
-      {/* Add Branch Modal */}
-      <ModalForm
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        title="Add New Branch"
-        description="Fill in the details to create a new branch."
-        onSubmit={handleSave}
-        submitLabel="Create Branch"
-        loading={saving}
-        data-ocid="add_branch.dialog"
-      >
-        <BranchFormFields form={form} setForm={setForm} managers={managers} />
-      </ModalForm>
-
-      {/* Edit Branch Modal */}
-      <ModalForm
-        open={editBranch !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditBranch(null);
-        }}
-        title={`Edit Branch — ${editBranch?.name ?? ""}`}
-        description="Update branch information."
-        onSubmit={handleSave}
-        submitLabel="Save Changes"
-        loading={saving}
-        data-ocid="edit_branch.dialog"
-      >
-        <BranchFormFields form={form} setForm={setForm} managers={managers} />
-      </ModalForm>
-    </div>
-  );
-}
-
-// ── Branch Form ────────────────────────────────────────────────────────────────
-interface FormState {
-  name: string;
-  code: string;
-  city: string;
-  state: string;
-  address: string;
-  phone: string;
-  managerId: string;
-  status: BranchStatus;
-}
-
-function BranchFormFields({
-  form,
-  setForm,
-  managers,
-}: {
-  form: FormState;
-  setForm: React.Dispatch<React.SetStateAction<FormState>>;
-  managers: User[];
-}) {
-  function update(key: keyof FormState, value: string) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Branch Name *</Label>
-          <Input
-            placeholder="e.g. Ahmedabad East"
-            value={form.name}
-            onChange={(e) => update("name", e.target.value)}
-            className="rounded-xl text-sm h-9"
-            data-ocid="branch_form.name.input"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Branch Code *</Label>
-          <Input
-            placeholder="e.g. AMD-E01"
-            value={form.code}
-            onChange={(e) => update("code", e.target.value)}
-            className="rounded-xl text-sm h-9 font-mono"
-            data-ocid="branch_form.code.input"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Full Address</Label>
-        <Input
-          placeholder="Street, Area, Pincode"
-          value={form.address}
-          onChange={(e) => update("address", e.target.value)}
-          className="rounded-xl text-sm h-9"
-          data-ocid="branch_form.address.input"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">City</Label>
-          <Input
-            placeholder="City"
-            value={form.city}
-            onChange={(e) => update("city", e.target.value)}
-            className="rounded-xl text-sm h-9"
-            data-ocid="branch_form.city.input"
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">State</Label>
-          <Input
-            placeholder="State"
-            value={form.state}
-            onChange={(e) => update("state", e.target.value)}
-            className="rounded-xl text-sm h-9"
-            data-ocid="branch_form.state.input"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Phone</Label>
-          <div className="relative">
-            <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="+91 …"
-              value={form.phone}
-              onChange={(e) => update("phone", e.target.value)}
-              className="rounded-xl text-sm h-9 pl-8"
-              data-ocid="branch_form.phone.input"
-            />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Status</Label>
-          <Select
-            value={form.status}
-            onValueChange={(v) => update("status", v)}
-          >
-            <SelectTrigger
-              className="rounded-xl text-sm h-9"
-              data-ocid="branch_form.status.select"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Inactive">Inactive</SelectItem>
-              <SelectItem value="Suspended">Suspended</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">Branch Manager</Label>
-        <Select
-          value={form.managerId}
-          onValueChange={(v) => update("managerId", v)}
-        >
-          <SelectTrigger
-            className="rounded-xl text-sm h-9"
-            data-ocid="branch_form.manager.select"
-          >
-            <SelectValue placeholder="Assign a manager" />
-          </SelectTrigger>
-          <SelectContent>
-            {managers.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.name} — {m.designation}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }

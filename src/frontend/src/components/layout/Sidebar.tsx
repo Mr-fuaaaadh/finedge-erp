@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
+  Bell,
   Building2,
   CheckSquare,
   ChevronLeft,
@@ -9,6 +10,8 @@ import {
   DollarSign,
   GitBranch,
   LayoutDashboard,
+  LogIn,
+  Settings,
   ShieldCheck,
   Target,
   TrendingUp,
@@ -24,62 +27,95 @@ interface NavItem {
   icon: React.ElementType;
   path: string;
   allowedRoles: Role[];
+  section?: "main" | "utility";
 }
 
 const navItems: NavItem[] = [
+  // ── Main navigation ──────────────────────────────────────────────────────
   {
     label: "Dashboard",
     icon: LayoutDashboard,
     path: "/dashboard",
     allowedRoles: ["admin", "branch_manager", "staff", "finance_manager"],
+    section: "main",
   },
   {
     label: "Branches",
     icon: GitBranch,
     path: "/branches",
     allowedRoles: ["admin", "finance_manager"],
+    section: "main",
   },
   {
     label: "Staff",
     icon: Users,
     path: "/staff",
     allowedRoles: ["admin", "branch_manager"],
+    section: "main",
   },
   {
     label: "Leads / CRM",
     icon: Target,
     path: "/leads",
     allowedRoles: ["admin", "branch_manager", "staff"],
+    section: "main",
   },
   {
     label: "Tasks",
     icon: CheckSquare,
     path: "/tasks",
     allowedRoles: ["admin", "branch_manager", "staff", "finance_manager"],
+    section: "main",
   },
   {
     label: "Attendance",
     icon: Clock,
     path: "/attendance",
     allowedRoles: ["admin", "branch_manager", "staff"],
+    section: "main",
   },
   {
     label: "Finance",
     icon: DollarSign,
     path: "/finance",
     allowedRoles: ["admin", "finance_manager"],
+    section: "main",
   },
   {
     label: "Performance",
     icon: TrendingUp,
     path: "/performance",
     allowedRoles: ["admin", "branch_manager", "finance_manager"],
+    section: "main",
   },
   {
     label: "Audit Logs",
     icon: ShieldCheck,
     path: "/audit-logs",
     allowedRoles: ["admin"],
+    section: "main",
+  },
+  // ── Utility navigation ───────────────────────────────────────────────────
+  {
+    label: "Notifications",
+    icon: Bell,
+    path: "/notifications",
+    allowedRoles: ["admin", "branch_manager", "staff", "finance_manager"],
+    section: "utility",
+  },
+  {
+    label: "Settings",
+    icon: Settings,
+    path: "/settings",
+    allowedRoles: ["admin", "branch_manager", "staff", "finance_manager"],
+    section: "utility",
+  },
+  {
+    label: "Login",
+    icon: LogIn,
+    path: "/login",
+    allowedRoles: ["admin", "branch_manager", "staff", "finance_manager"],
+    section: "utility",
   },
 ];
 
@@ -174,6 +210,36 @@ function SidebarContent({
 }: SidebarContentProps) {
   const showLabels = !sidebarCollapsed || isMobile;
 
+  const mainItems = visibleItems.filter((i) => i.section !== "utility");
+  const utilityItems = visibleItems.filter((i) => i.section === "utility");
+
+  function renderNavItem(item: NavItem) {
+    const Icon = item.icon;
+    const isActive =
+      location.pathname === item.path ||
+      location.pathname.startsWith(`${item.path}/`);
+    return (
+      <Link
+        key={item.path}
+        to={item.path}
+        onClick={onNavClick}
+        data-ocid={`nav.${item.label.toLowerCase().replace(/[^a-z0-9]/g, "_")}.link`}
+        title={!showLabels ? item.label : undefined}
+        className={cn(
+          "flex items-center gap-3 rounded-xl text-sm font-medium transition-smooth",
+          "min-h-[44px] py-2",
+          showLabels ? "px-3" : "px-0 justify-center",
+          isActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+        )}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {showLabels && <span className="truncate">{item.label}</span>}
+      </Link>
+    );
+  }
+
   return (
     <>
       {/* Brand */}
@@ -210,35 +276,17 @@ function SidebarContent({
         )}
       </div>
 
-      {/* Nav */}
+      {/* Main nav */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3 px-2 space-y-0.5">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            location.pathname === item.path ||
-            location.pathname.startsWith(`${item.path}/`);
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={onNavClick}
-              data-ocid={`nav.${item.label.toLowerCase().replace(/[^a-z0-9]/g, "_")}.link`}
-              title={!showLabels ? item.label : undefined}
-              className={cn(
-                "flex items-center gap-3 rounded-xl text-sm font-medium transition-smooth",
-                "min-h-[44px] py-2",
-                showLabels ? "px-3" : "px-0 justify-center",
-                isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              )}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {showLabels && <span className="truncate">{item.label}</span>}
-            </Link>
-          );
-        })}
+        {mainItems.map(renderNavItem)}
       </nav>
+
+      {/* Utility nav — always at bottom */}
+      {utilityItems.length > 0 && (
+        <div className="border-t border-border py-2 px-2 space-y-0.5 shrink-0">
+          {utilityItems.map(renderNavItem)}
+        </div>
+      )}
 
       {/* Collapse toggle — desktop only (not tablet, not mobile) */}
       {!isMobile && !isTablet && (

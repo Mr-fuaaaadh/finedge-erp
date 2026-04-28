@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -19,12 +18,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowRight,
   Building2,
   CalendarDays,
   CheckCircle2,
   Download,
+  Edit,
+  Eye,
   IndianRupee,
   LayoutGrid,
   List,
@@ -51,16 +53,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { DataTable } from "../components/shared/DataTable";
 import type { Column } from "../components/shared/DataTable";
-import { ModalForm } from "../components/shared/ModalForm";
+import { DataTable } from "../components/shared/DataTable";
 import { PageHeader } from "../components/shared/PageHeader";
 import { PriorityBadge } from "../components/shared/PriorityBadge";
 import { StatCard } from "../components/shared/StatCard";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { Timeline } from "../components/shared/Timeline";
 import { mockLeads } from "../data/mockLeads";
-import type { Lead, LeadSource, LeadStatus } from "../types";
+import type { Lead, LeadSource, LeadStatus, TaskPriority } from "../types";
 import { exportToCSV } from "../utils/csvExport";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -115,6 +116,10 @@ const SOURCE_LABELS: LeadSource[] = [
   "Walk-in",
 ];
 
+function leadPriority(value: number): TaskPriority {
+  return value >= 1000000 ? "High" : value >= 500000 ? "Medium" : "Low";
+}
+
 function leadsToCSV(leads: Lead[]): Record<string, unknown>[] {
   return leads.map((l) => ({
     Name: l.name,
@@ -132,16 +137,18 @@ function leadsToCSV(leads: Lead[]): Record<string, unknown>[] {
   }));
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Kanban Card ─────────────────────────────────────────────────────────────
 
 function LeadKanbanCard({
   lead,
   onDragStart,
-  onSelect,
+  onView,
+  onEdit,
 }: {
   lead: Lead;
   onDragStart: (e: React.DragEvent, lead: Lead) => void;
-  onSelect: (lead: Lead) => void;
+  onView: (lead: Lead) => void;
+  onEdit: (lead: Lead) => void;
 }) {
   return (
     <motion.div
@@ -150,28 +157,24 @@ function LeadKanbanCard({
       whileHover={{ scale: 1.01 }}
       draggable
       onDragStart={(e) => onDragStart(e as unknown as React.DragEvent, lead)}
-      onClick={() => onSelect(lead)}
-      className="bg-card border border-border rounded-xl p-3.5 cursor-grab active:cursor-grabbing shadow-card hover:shadow-elevated transition-smooth group"
+      className="bg-card border border-border rounded-xl p-3.5 shadow-card hover:shadow-elevated transition-smooth group"
       data-ocid={`leads.kanban.card.${lead.id}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-foreground truncate">
+        <button
+          type="button"
+          onClick={() => onView(lead)}
+          className="flex-1 min-w-0 text-left"
+          data-ocid={`leads.kanban.view.${lead.id}`}
+        >
+          <p className="text-xs font-semibold text-foreground truncate hover:text-primary transition-colors">
             {lead.name}
           </p>
           <p className="text-[10px] text-muted-foreground truncate mt-0.5">
             {lead.company}
           </p>
-        </div>
-        <PriorityBadge
-          priority={
-            lead.value >= 1000000
-              ? "High"
-              : lead.value >= 500000
-                ? "Medium"
-                : "Low"
-          }
-        />
+        </button>
+        <PriorityBadge priority={leadPriority(lead.value)} />
       </div>
 
       <div className="flex items-center gap-1.5 mb-2.5">
@@ -183,7 +186,7 @@ function LeadKanbanCard({
         </span>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
           <User className="w-3 h-3" />
           <span className="truncate max-w-[80px]">{lead.assignedTo}</span>
@@ -195,7 +198,7 @@ function LeadKanbanCard({
       </div>
 
       {lead.followUpDate && (
-        <div className="mt-2 pt-2 border-t border-border flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="mb-2 flex items-center gap-1 text-[10px] text-muted-foreground">
           <CalendarDays className="w-3 h-3" />
           Follow-up:{" "}
           {new Date(lead.followUpDate).toLocaleDateString("en-IN", {
@@ -204,9 +207,35 @@ function LeadKanbanCard({
           })}
         </div>
       )}
+
+      {/* Actions row */}
+      <div className="flex gap-1.5 pt-2 border-t border-border opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[10px] rounded-lg flex-1 gap-1"
+          onClick={() => onView(lead)}
+          data-ocid={`leads.kanban.view_button.${lead.id}`}
+        >
+          <Eye className="w-3 h-3" />
+          View
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[10px] rounded-lg flex-1 gap-1"
+          onClick={() => onEdit(lead)}
+          data-ocid={`leads.kanban.edit_button.${lead.id}`}
+        >
+          <Edit className="w-3 h-3" />
+          Edit
+        </Button>
+      </div>
     </motion.div>
   );
 }
+
+// ─── Kanban Column ────────────────────────────────────────────────────────────
 
 function KanbanColumn({
   status,
@@ -214,7 +243,8 @@ function KanbanColumn({
   onDragStart,
   onDragOver,
   onDrop,
-  onSelect,
+  onView,
+  onEdit,
   onAddNew,
 }: {
   status: LeadStatus;
@@ -222,7 +252,8 @@ function KanbanColumn({
   onDragStart: (e: React.DragEvent, lead: Lead) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent, toCol: LeadStatus) => void;
-  onSelect: (lead: Lead) => void;
+  onView: (lead: Lead) => void;
+  onEdit: (lead: Lead) => void;
   onAddNew: (status: LeadStatus) => void;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -248,7 +279,6 @@ function KanbanColumn({
       }}
       data-ocid={`leads.kanban.column.${status.toLowerCase().replace(/ /g, "_")}`}
     >
-      {/* Column header */}
       <div
         className={cn(
           "flex items-center justify-between px-4 py-3 rounded-t-2xl border-b",
@@ -280,7 +310,6 @@ function KanbanColumn({
         </Button>
       </div>
 
-      {/* Cards */}
       <ScrollArea className="flex-1 max-h-[520px]">
         <div className="p-3 space-y-2.5">
           {leads.length === 0 ? (
@@ -293,7 +322,8 @@ function KanbanColumn({
                 key={lead.id}
                 lead={lead}
                 onDragStart={onDragStart}
-                onSelect={onSelect}
+                onView={onView}
+                onEdit={onEdit}
               />
             ))
           )}
@@ -345,10 +375,14 @@ function LeadDetailSheet({
   lead,
   open,
   onClose,
+  onNavigateToDetail,
+  onNavigateToEdit,
 }: {
   lead: Lead | null;
   open: boolean;
   onClose: () => void;
+  onNavigateToDetail: (lead: Lead) => void;
+  onNavigateToEdit: (lead: Lead) => void;
 }) {
   const [note, setNote] = useState("");
   const [notes, setNotes] = useState<string[]>([lead?.notes ?? ""]);
@@ -369,7 +403,6 @@ function LeadDetailSheet({
         className="w-full max-w-xl p-0 flex flex-col"
         data-ocid="leads.detail.sheet"
       >
-        {/* Header */}
         <SheetHeader className="px-6 py-5 border-b bg-card">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
@@ -388,6 +421,35 @@ function LeadDetailSheet({
                 {(lead.value / 100000).toFixed(1)}L
               </span>
             </div>
+          </div>
+          {/* Quick navigation buttons */}
+          <div className="flex gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-7 text-xs rounded-xl gap-1.5"
+              onClick={() => {
+                onClose();
+                onNavigateToDetail(lead);
+              }}
+              data-ocid="leads.detail.view_full.button"
+            >
+              <Eye className="w-3 h-3" />
+              Full View
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-7 text-xs rounded-xl gap-1.5"
+              onClick={() => {
+                onClose();
+                onNavigateToEdit(lead);
+              }}
+              data-ocid="leads.detail.edit.button"
+            >
+              <Edit className="w-3 h-3" />
+              Edit Lead
+            </Button>
           </div>
         </SheetHeader>
 
@@ -409,7 +471,6 @@ function LeadDetailSheet({
           </TabsList>
 
           <ScrollArea className="flex-1 px-6 pb-6">
-            {/* Overview */}
             <TabsContent value="overview" className="mt-0 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
@@ -448,7 +509,6 @@ function LeadDetailSheet({
               </div>
             </TabsContent>
 
-            {/* Activity */}
             <TabsContent value="activity" className="mt-0">
               <Timeline
                 activities={lead.activities}
@@ -456,7 +516,6 @@ function LeadDetailSheet({
               />
             </TabsContent>
 
-            {/* Notes */}
             <TabsContent value="notes" className="mt-0 space-y-4">
               <div className="space-y-2">
                 <Textarea
@@ -492,7 +551,6 @@ function LeadDetailSheet({
               </div>
             </TabsContent>
 
-            {/* Calls */}
             <TabsContent value="calls" className="mt-0">
               <div className="space-y-2">
                 {MOCK_CALLS.map((c, i) => (
@@ -520,7 +578,6 @@ function LeadDetailSheet({
               </div>
             </TabsContent>
 
-            {/* Meetings */}
             <TabsContent value="meetings" className="mt-0">
               <div className="space-y-2">
                 {MOCK_MEETINGS.map((m, i) => (
@@ -557,7 +614,10 @@ function LeadDetailSheet({
 
 // ─── Table columns ────────────────────────────────────────────────────────────
 
-function buildColumns(onSelect: (lead: Lead) => void): Column<Lead>[] {
+function buildColumns(
+  onView: (lead: Lead) => void,
+  onEdit: (lead: Lead) => void,
+): Column<Lead>[] {
   return [
     {
       key: "name",
@@ -567,7 +627,7 @@ function buildColumns(onSelect: (lead: Lead) => void): Column<Lead>[] {
         <button
           type="button"
           className="text-left hover:text-primary transition-colors"
-          onClick={() => onSelect(row)}
+          onClick={() => onView(row)}
           data-ocid={`leads.table.row.name.${row.id}`}
         >
           <p className="text-xs font-semibold text-foreground">{row.name}</p>
@@ -625,15 +685,28 @@ function buildColumns(onSelect: (lead: Lead) => void): Column<Lead>[] {
       key: "id",
       header: "",
       render: (row) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs rounded-xl"
-          onClick={() => onSelect(row)}
-          data-ocid={`leads.table.view.${row.id}`}
-        >
-          View
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs rounded-xl gap-1"
+            onClick={() => onView(row)}
+            data-ocid={`leads.table.view.${row.id}`}
+          >
+            <Eye className="w-3 h-3" />
+            View
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs rounded-xl gap-1"
+            onClick={() => onEdit(row)}
+            data-ocid={`leads.table.edit.${row.id}`}
+          >
+            <Edit className="w-3 h-3" />
+            Edit
+          </Button>
+        </div>
       ),
     },
   ];
@@ -665,7 +738,6 @@ function LeadAnalytics({ leads }: { leads: Lead[] }) {
       transition={{ duration: 0.4 }}
       className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4"
     >
-      {/* Donut */}
       <div className="bg-card rounded-2xl border border-border shadow-card p-5">
         <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-primary" />
@@ -713,7 +785,6 @@ function LeadAnalytics({ leads }: { leads: Lead[] }) {
         </div>
       </div>
 
-      {/* Bar chart: conversion rate */}
       <div className="bg-card rounded-2xl border border-border shadow-card p-5">
         <p className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-primary" />
@@ -761,14 +832,12 @@ function LeadAnalytics({ leads }: { leads: Lead[] }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>(mockLeads);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [dragState, setDragState] = useState<DragState>(null);
 
-  // Table filters
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<LeadStatus | "All">("All");
   const [filterSource, setFilterSource] = useState<LeadSource | "All">("All");
@@ -784,7 +853,6 @@ export default function LeadsPage() {
     [leads],
   );
 
-  // Kanban drag
   const handleDragStart = (e: React.DragEvent, lead: Lead) => {
     setDragState({ cardId: lead.id, fromCol: lead.status });
     e.dataTransfer.effectAllowed = "move";
@@ -806,20 +874,23 @@ export default function LeadsPage() {
     setDragState(null);
   };
 
-  const openLead = useCallback((lead: Lead) => {
+  const openSheet = useCallback((lead: Lead) => {
     setSelectedLead(lead);
     setSheetOpen(true);
   }, []);
 
-  const handleAdd = () => {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      setShowAddModal(false);
-    }, 1200);
-  };
+  const navigateToDetail = useCallback(
+    (lead: Lead) =>
+      navigate({ to: "/leads/$leadId", params: { leadId: lead.id } }),
+    [navigate],
+  );
 
-  // Filtered table data
+  const navigateToEdit = useCallback(
+    (lead: Lead) =>
+      navigate({ to: "/leads/$leadId/edit", params: { leadId: lead.id } }),
+    [navigate],
+  );
+
   const filteredLeads = useMemo(() => {
     let data = leads;
     if (filterStatus !== "All")
@@ -838,7 +909,10 @@ export default function LeadsPage() {
     return data;
   }, [leads, filterStatus, filterSource, search]);
 
-  const columns = useMemo(() => buildColumns(openLead), [openLead]);
+  const columns = useMemo(
+    () => buildColumns(openSheet, navigateToEdit),
+    [openSheet, navigateToEdit],
+  );
 
   function handleExportCSV() {
     exportToCSV(leadsToCSV(filteredLeads), "leads_export");
@@ -854,8 +928,8 @@ export default function LeadsPage() {
           <Button
             size="sm"
             className="rounded-xl gap-1.5"
-            onClick={() => setShowAddModal(true)}
-            data-ocid="leads.add_lead.open_modal_button"
+            onClick={() => navigate({ to: "/leads/new" })}
+            data-ocid="leads.add_lead.primary_button"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Lead
@@ -926,7 +1000,7 @@ export default function LeadsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Kanban — desktop: horizontal scroll; mobile: vertical columns */}
+        {/* Kanban */}
         <TabsContent value="kanban">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             {/* Mobile: stacked columns */}
@@ -939,8 +1013,9 @@ export default function LeadsPage() {
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  onSelect={openLead}
-                  onAddNew={() => setShowAddModal(true)}
+                  onView={openSheet}
+                  onEdit={navigateToEdit}
+                  onAddNew={() => navigate({ to: "/leads/new" })}
                 />
               ))}
             </div>
@@ -954,8 +1029,9 @@ export default function LeadsPage() {
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
-                  onSelect={openLead}
-                  onAddNew={() => setShowAddModal(true)}
+                  onView={openSheet}
+                  onEdit={navigateToEdit}
+                  onAddNew={() => navigate({ to: "/leads/new" })}
                 />
               ))}
             </div>
@@ -969,7 +1045,6 @@ export default function LeadsPage() {
             animate={{ opacity: 1 }}
             className="bg-card rounded-2xl border border-border shadow-card"
           >
-            {/* Filters */}
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 p-3 sm:p-4 border-b border-border">
               <div className="relative flex-1 min-w-[160px]">
                 <Input
@@ -1050,97 +1125,9 @@ export default function LeadsPage() {
         lead={selectedLead}
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
+        onNavigateToDetail={navigateToDetail}
+        onNavigateToEdit={navigateToEdit}
       />
-
-      {/* Add Lead Modal */}
-      <ModalForm
-        open={showAddModal}
-        onOpenChange={setShowAddModal}
-        title="Add New Lead"
-        description="Enter lead contact and product details."
-        onSubmit={handleAdd}
-        submitLabel="Create Lead"
-        loading={saving}
-        data-ocid="add_lead"
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Contact Name</Label>
-              <Input
-                placeholder="Full name"
-                className="rounded-xl text-sm"
-                data-ocid="add_lead.name.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Company</Label>
-              <Input
-                placeholder="Company name"
-                className="rounded-xl text-sm"
-                data-ocid="add_lead.company.input"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Phone</Label>
-              <Input
-                placeholder="+91 …"
-                className="rounded-xl text-sm"
-                data-ocid="add_lead.phone.input"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Email</Label>
-              <Input
-                type="email"
-                placeholder="email@company.com"
-                className="rounded-xl text-sm"
-                data-ocid="add_lead.email.input"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Lead Source</Label>
-              <Select>
-                <SelectTrigger
-                  className="rounded-xl text-sm"
-                  data-ocid="add_lead.source.select"
-                >
-                  <SelectValue placeholder="Select source" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SOURCE_LABELS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Loan Value (₹)</Label>
-              <Input
-                type="number"
-                placeholder="500000"
-                className="rounded-xl text-sm"
-                data-ocid="add_lead.value.input"
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Notes</Label>
-            <Textarea
-              placeholder="Initial qualification notes…"
-              rows={3}
-              className="rounded-xl text-sm resize-none"
-              data-ocid="add_lead.notes.textarea"
-            />
-          </div>
-        </div>
-      </ModalForm>
     </div>
   );
 }
